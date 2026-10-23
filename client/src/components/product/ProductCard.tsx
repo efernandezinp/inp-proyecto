@@ -1,19 +1,21 @@
 import { useState } from "react";
 import { Product, isStockAvailable } from "@/lib/products";
-import { Heart, ArrowRightLeft, Link as LinkIcon, Info, Bike, ShoppingCart, Trash2, ChevronUp, ChevronDown } from "lucide-react";
+import { Heart, ArrowRightLeft, Link as LinkIcon, Info, Bike, ShoppingCart, Trash2, ChevronUp, ChevronDown, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import styles from "./ProductCard.module.css";
+import { addToCart, removeFromCart, useCart } from "@/lib/cart";
 
 interface ProductCardProps {
   product: Product;
   viewMode?: 'grid' | 'list';
+  showOfferDetails?: boolean;
 }
 
-export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
+export function ProductCard({ product, viewMode = 'grid', showOfferDetails = false }: ProductCardProps) {
   const { id, title, price, originalPrice, image, brand, stock, isNew, code } = product;
   const [quantity, setQuantity] = useState(1);
-  const [addedQuantity, setAddedQuantity] = useState(0);
+  const addedQuantity = useCart().find((item) => item.code === code)?.quantity ?? 0;
 
   const discount = originalPrice ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0;
   
@@ -22,42 +24,36 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
   const precioLista = originalPrice ? originalPrice * 1.1 : price * 1.1;
 
   const handleAdd = () => {
-    setAddedQuantity(prev => prev + quantity);
+    addToCart(product, quantity);
     setQuantity(1);
   };
 
   const handleRemove = () => {
-    setAddedQuantity(0);
+    removeFromCart(code);
   };
 
   const incrementQuantity = () => setQuantity(prev => prev + 1);
   const decrementQuantity = () => setQuantity(prev => Math.max(1, prev - 1));
 
-  const regions = [
-    { key: 'NOA', color: '#22c55e' },
-    { key: 'NEA', color: '#f59e0b' },
-    { key: 'BUE', color: '#f59e0b' },
-    { key: 'CUYO', color: '#22c55e' }
-  ];
+  const regions = ['NOA', 'NEA', 'BUE', 'CUYO'] as const;
 
   const getStockColor = (qty: number) => {
-    if (!isStockAvailable(qty)) return '#ef4444';
-    if (qty <= 3) return '#f59e0b';
-    return '#22c55e';
+    return isStockAvailable(qty) ? '#ffb400' : '#ff5c65';
   };
 
   const StockBars = () => (
     <div className={styles.stockBars}>
       {regions.map(region => {
-        // @ts-ignore
-        const qty = stock[region.key] || 0;
+        const qty = stock[region] ?? 0;
         return (
-          <div key={region.key} className={styles.stockBarRegion}>
-            <span className={styles.regionLabel}>{region.key === 'CUYO' ? 'CUY' : region.key}</span>
-            <div 
-              className={styles.stockBar} 
-              style={{ backgroundColor: getStockColor(qty) }}
-            />
+          <div key={region} className={styles.stockBarRegion}>
+            <span className={styles.regionLabel}>{region === 'CUYO' ? 'CUY' : region}</span>
+            <div className={styles.stockAmount}>
+              <span className={styles.stockBar} style={{ backgroundColor: region === 'BUE' ? '#16b967' : getStockColor(qty) }} aria-hidden="true" />
+              {region === 'BUE'
+                ? <Check className={styles.stockCheck} aria-label="BUE" />
+                : <span className={styles.stockQuantity}>{qty}</span>}
+            </div>
           </div>
         );
       })}
@@ -106,7 +102,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
   if (viewMode === 'list') {
     return (
       <div className={styles.listCard} data-testid={`card-product-${id}`}>
-        {discount > 0 && (
+        {showOfferDetails && discount > 0 && (
           <div className={styles.listBadges}>
             <Badge className="bg-red-600 hover:bg-red-700 text-[11px] font-bold rounded-full px-2">{discount}%</Badge>
           </div>
@@ -146,7 +142,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
               <div className={styles.priceRow}>
                 <span className={styles.priceLabelSmall}>PRECIO PÚBLICO:</span>
                 <span className={styles.pricePublico}>${precioPublico?.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
-                {discount > 0 && <Badge className="bg-orange-500 hover:bg-orange-600 text-[10px] ml-2">{discount}%</Badge>}
+                {showOfferDetails && discount > 0 && <Badge className="bg-orange-500 hover:bg-orange-600 text-[10px] ml-2">{discount}%</Badge>}
               </div>
 
               {addedQuantity === 0 ? (
@@ -183,99 +179,81 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
     );
   }
 
-  // Grid View
+  // Grid view
   return (
     <div className={styles.gridCard} data-testid={`card-product-${id}`}>
-      <div className={styles.sideActions}>
-        <ActionIcons />
-      </div>
-
-      {discount > 0 && (
+      {showOfferDetails && discount > 0 && (
         <div className={styles.badges}>
-          <Badge className="bg-red-600 hover:bg-red-700 text-[11px] font-bold rounded-full px-2.5 py-1">{discount}%</Badge>
+          <span className={styles.offerBadge}>OFERTA {discount}%</span>
         </div>
       )}
 
       <div className={styles.imageWrapper}>
         <div className={styles.imageContainer}>
-          <button className={styles.navBtn + " " + styles.navBtnLeft}>‹</button>
           <img src={image} alt={title} className={styles.productImage} />
-          <button className={styles.navBtn + " " + styles.navBtnRight}>›</button>
         </div>
-        <div className={styles.imageDots}>
+        <div className={styles.imageDots} aria-hidden="true">
           <span className={styles.dot + " " + styles.dotActive}></span>
           <span className={styles.dot}></span>
           <span className={styles.dot}></span>
-        </div>
-        <div className={styles.imageLogos}>
-          <img src="https://via.placeholder.com/30x20/e5e7eb/9ca3af?text=e-bit" alt="e-bit" className={styles.logoSmall} />
-          <img src="https://via.placeholder.com/40x20/e5e7eb/9ca3af?text=INTERCAP" alt="INTERCAP" className={styles.logoSmall} />
+          <span className={styles.dot}></span>
+          <span className={styles.dot}></span>
         </div>
       </div>
 
       <div className={styles.content}>
         <div className={styles.brand}>{brand}</div>
         <h3 className={styles.title} title={title}>{title}</h3>
-        
-        <div className={styles.code}>
-          <span className={styles.codeLabel}>Cod:</span> {code}
-        </div>
+        <div className={styles.code}>Cod: {code}</div>
+        <div className={styles.presentacion}>1° Envase Caja 1 UNI</div>
 
-        <div className={styles.presentacion}>
-          <ul className={styles.presentacionListCompact}>
-            <li>1° Envase Botella 1 UNI</li>
-            <li>2° Envase Cajas 10 UNI</li>
-          </ul>
-        </div>
-
-        <div className={styles.priceSection}>
+        <div className={styles.prices}>
           <div className={styles.priceLabel}>PRECIO FINAL:</div>
-          <div className={styles.price}>
-            ${price.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <div className={styles.priceLine}>
+            <span className={styles.price}>$ {price.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span className={styles.priceStrikedSmall}>$ {originalPrice.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
-        </div>
-        
-        <div className={styles.priceSecondary}>
-          <div className={styles.priceLabel}>PRECIO LISTA:</div>
-          <div className={styles.priceStrikedSmall}>
-            ${precioLista.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <div className={styles.priceLabel}>PRECIO PÚBLICO:</div>
+          <div className={styles.pricePublicoValue}>
+            $ {(originalPrice * 1.1).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
         </div>
 
-        <div className={styles.pricePublicoSection}>
-          <div className={styles.priceLabel}>PRECIO PÚBLICO:</div>
-          <div className={styles.pricePublicoRow}>
-            <span className={styles.pricePublicoValue}>
-              ${precioPublico?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-            {discount > 0 && <Badge className="bg-orange-500 hover:bg-orange-600 text-[9px] ml-1.5 px-1.5 py-0.5">{discount}%</Badge>}
+        {showOfferDetails && discount > 0 && (
+          <div className={styles.offerPanel}>
+            <div className={styles.offerPanelHeading}>
+              <span>OFERTA {brand}</span>
+              <span>HASTA {discount}% OFF</span>
+            </div>
+            <div className={styles.offerTrack}><span /></div>
+            <div className={styles.offerStatus}>OFERTA DISPONIBLE</div>
           </div>
-        </div>
+        )}
 
         <StockBars />
+
+        {showOfferDetails && discount > 0 && (
+          <div className={styles.bonusRow}>
+            <span>BONIFICACIÓN %:</span>
+            <span className={styles.bonusValue}>0</span>
+          </div>
+        )}
 
         {addedQuantity === 0 ? (
           <div className={styles.addSectionGrid}>
             <button className={styles.addButtonGrid} onClick={handleAdd} data-testid={`button-add-${id}`}>
-              <ShoppingCart className="w-4 h-4 mr-2" />
+              <ShoppingCart size={17} />
               AGREGAR
             </button>
             <div className={styles.quantitySelectorGrid}>
-              <span className={styles.quantityValue}>{quantity}</span>
-              <div className={styles.quantityControls}>
-                <button onClick={incrementQuantity} className={styles.quantityBtn} data-testid={`button-increment-${id}`}>
-                  <ChevronUp className="w-3 h-3" />
-                </button>
-                <button onClick={decrementQuantity} className={styles.quantityBtn} data-testid={`button-decrement-${id}`}>
-                  <ChevronDown className="w-3 h-3" />
-                </button>
-              </div>
+              <input type="number" min="1" value={quantity} aria-label={`Cantidad de ${title}`}
+                onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))} />
             </div>
           </div>
         ) : (
           <div className={styles.removeSectionGrid}>
             <button className={styles.removeButtonGrid} onClick={handleRemove} data-testid={`button-remove-${id}`}>
-              <Trash2 className="w-4 h-4 mr-2" />
+              <Trash2 size={16} />
               QUITAR
             </button>
             <div className={styles.addedBadgeGrid}>{addedQuantity} UNI</div>

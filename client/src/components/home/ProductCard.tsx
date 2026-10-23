@@ -1,6 +1,8 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Heart, ShoppingCart } from "lucide-react";
+import { useState } from "react";
+import { addToCart } from "@/lib/cart";
 
 interface ProductCardProps {
   product: {
@@ -16,6 +18,7 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product }: ProductCardProps) {
+  const [quantity, setQuantity] = useState(1);
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('es-AR', {
       style: 'currency',
@@ -86,11 +89,11 @@ export function ProductCard({ product }: ProductCardProps) {
           
           <div className="flex gap-2">
             <div className="flex border border-gray-200 rounded-md overflow-hidden bg-gray-50 h-9 w-20 shrink-0">
-               <button className="w-6 flex items-center justify-center hover:bg-gray-200 font-bold text-gray-600">-</button>
-               <input type="text" value="1" className="w-full text-center text-sm font-bold bg-transparent outline-none" readOnly />
-               <button className="w-6 flex items-center justify-center hover:bg-gray-200 font-bold text-gray-600">+</button>
+               <button type="button" onClick={() => setQuantity((value) => Math.max(1, value - 1))} aria-label="Restar unidad" className="w-6 flex items-center justify-center hover:bg-gray-200 font-bold text-gray-600">-</button>
+               <input type="text" value={quantity} className="w-full text-center text-sm font-bold bg-transparent outline-none" readOnly />
+               <button type="button" onClick={() => setQuantity((value) => value + 1)} aria-label="Sumar unidad" className="w-6 flex items-center justify-center hover:bg-gray-200 font-bold text-gray-600">+</button>
             </div>
-            <Button className="flex-1 bg-brand-orange hover:bg-orange-600 text-white text-xs font-bold h-9 rounded-md flex items-center gap-2 shadow-sm transition-colors">
+            <Button onClick={() => { addToCart(product, quantity); setQuantity(1); }} className="flex-1 bg-brand-orange hover:bg-orange-600 text-white text-xs font-bold h-9 rounded-md flex items-center gap-2 shadow-sm transition-colors">
               <ShoppingCart className="w-4 h-4" />
               <span className="hidden sm:inline">AGREGAR</span>
             </Button>

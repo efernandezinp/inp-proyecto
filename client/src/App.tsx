@@ -10,6 +10,7 @@ import Catalog from "@/pages/catalog";
 import ProductDetail from "@/pages/product-detail";
 import QuickHelp from "@/pages/quick-help";
 import Orders from "@/pages/orders";
+import Cart from "@/pages/cart";
 
 function Router() {
   return (
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/info/ayuda-rapida/solicitud-de-cliente" component={QuickHelp} />
       <Route path="/info/ayuda-rapida" component={QuickHelp} />
       <Route path="/pedidos" component={Orders} />
+      <Route path="/carrito" component={Cart} />
       <Route component={NotFound} />
     </Switch>
   );

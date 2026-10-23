@@ -18,11 +18,18 @@ import { LayoutGrid, List, Table2, Download, X, ShoppingCart, Trash2, Search } f
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { addToCart, removeFromCart, useCart } from "@/lib/cart";
 
 export default function Catalog() {
+  const cartItems = useCart();
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'spreadsheet'>('grid');
   const [sortBy, setSortBy] = useState('relevante');
-  const [filters, setFilters] = useState<any>({});
+  const [filters, setFilters] = useState<any>(() =>
+    new URLSearchParams(window.location.search).get('ofertas') === 'true'
+      ? { state: ['isHot'] }
+      : {}
+  );
+  const showOfferDetails = (filters.state || []).includes('isHot');
 
   const [itemsPerPage, setItemsPerPage] = useState<number>(40);
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -32,7 +39,6 @@ export default function Catalog() {
   const [markup, setMarkup] = useState('');
   const [currency, setCurrency] = useState('ARS');
   const [spreadsheetQuantities, setSpreadsheetQuantities] = useState<Record<number, string>>({});
-  const [spreadsheetAdded, setSpreadsheetAdded] = useState<Record<number, boolean>>({});
   const [productSearch, setProductSearch] = useState("");
   const [showOnlyCartProducts, setShowOnlyCartProducts] = useState(false);
   const [spreadsheetColumnWidths, setSpreadsheetColumnWidths] = useState<Record<string, number>>({});
@@ -93,7 +99,7 @@ export default function Catalog() {
       .filter(Boolean);
 
     return PRODUCTS.filter(product => {
-      if (showOnlyCartProducts && (!spreadsheetAdded[product.id] || Number(spreadsheetQuantities[product.id] ?? "0") <= 0)) {
+      if (showOnlyCartProducts && !cartItems.some((item) => item.code === product.code)) {
         return false;
       }
 
@@ -149,13 +155,15 @@ export default function Catalog() {
         if (!matchesSubtype) return false;
       }
 
-      const depotFilters = filters.state || [];
-      if (depotFilters.length > 0) {
-        const matchesDepot = depotFilters.some((depot: string) => {
-          const stock = product.stock[depot as keyof typeof product.stock];
+      const stateFilters = filters.state || [];
+      if (stateFilters.length > 0) {
+        const matchesState = stateFilters.some((state: string) => {
+          if (state === 'isHot') return product.originalPrice > product.price;
+          if (state === 'isNew') return product.isNew === true;
+          const stock = product.stock[state as keyof typeof product.stock];
           return typeof stock === "number" && isStockAvailable(stock);
         });
-        if (!matchesDepot) return false;
+        if (!matchesState) return false;
       }
 
       // Check for attribute existence and match
@@ -185,7 +193,7 @@ export default function Catalog() {
       if (sortBy === 'novedades') return (a.isNew ? -1 : 1);
       return 0;
     });
-  }, [filters, sortBy, productSearch, showOnlyCartProducts, spreadsheetAdded, spreadsheetQuantities]);
+  }, [filters, sortBy, productSearch, showOnlyCartProducts, cartItems]);
 
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
   const hasProducts = filteredProducts.length > 0;
@@ -238,7 +246,10 @@ export default function Catalog() {
     }
   };
 
-  const getSpreadsheetQuantity = (productId: number) => spreadsheetQuantities[productId] ?? "0";
+  const getSpreadsheetQuantity = (productId: number) => {
+    const product = PRODUCTS.find((item) => item.id === productId);
+    return spreadsheetQuantities[productId] ?? String(cartItems.find((item) => item.code === product?.code)?.quantity ?? 0);
+  };
 
   const setSpreadsheetQuantity = (productId: number, value: string) => {
     const numericValue = value.replace(/\D/g, "");
@@ -249,32 +260,27 @@ export default function Catalog() {
       [productId]: nextValue
     }));
 
-    if (nextValue === "0") {
-      setSpreadsheetAdded((current) => ({
-        ...current,
-        [productId]: false
-      }));
-    }
   };
 
   const resetSpreadsheetQuantity = (productId: number) => {
+    const product = PRODUCTS.find((item) => item.id === productId);
+    if (product) removeFromCart(product.code);
     setSpreadsheetQuantities((current) => ({
       ...current,
       [productId]: "0"
-    }));
-    setSpreadsheetAdded((current) => ({
-      ...current,
-      [productId]: false
     }));
   };
 
   const addSpreadsheetProduct = (productId: number) => {
     if (Number(getSpreadsheetQuantity(productId)) <= 0) return;
 
-    setSpreadsheetAdded((current) => ({
-      ...current,
-      [productId]: true
-    }));
+    const product = PRODUCTS.find((item) => item.id === productId);
+    if (product) {
+      const existing = cartItems.find((item) => item.code === product.code);
+      if (existing) removeFromCart(product.code);
+      addToCart(product, Number(getSpreadsheetQuantity(productId)));
+    }
+
   };
 
   const startColumnResize = (event: ReactPointerEvent<HTMLElement>, columnId: string, currentWidth: number) => {
@@ -643,7 +649,7 @@ export default function Catalog() {
                         const quantityValue = getSpreadsheetQuantity(product.id);
                         const subtotalPrice = showPrecioPublico ? publicPrice : product.price;
                         const subtotal = Number(quantityValue) * subtotalPrice;
-                        const isAdded = spreadsheetAdded[product.id] && Number(quantityValue) > 0;
+                        const isAdded = cartItems.some((item) => item.code === product.code && item.quantity === Number(quantityValue));
 
                         return (
                           <tr key={product.id} className="group odd:bg-white even:bg-[#fbfcff] hover:bg-blue-50">
@@ -754,8 +760,8 @@ export default function Catalog() {
                 </div>
               </div>
             ) : (
-              <div className={`grid gap-4 ${viewMode === 'grid' ? 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5' : 'grid-cols-1'}`}>
-                {paginatedProducts.map((product) => <ProductCard key={product.id} product={product} viewMode={viewMode} />)}
+              <div className={`grid gap-4 ${viewMode === 'grid' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5' : 'grid-cols-1'}`}>
+                {paginatedProducts.map((product) => <ProductCard key={product.id} product={product} viewMode={viewMode} showOfferDetails={showOfferDetails} />)}
               </div>
             )}
             <div className="mt-8"><Footer /></div>

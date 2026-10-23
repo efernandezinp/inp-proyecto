@@ -6,6 +6,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
 import intercapLogo from "@assets/intercap-logo-blanco.png";
+import { useCarts } from "@/lib/cart";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +29,9 @@ type HeaderProps = {
 };
 
 export function Header({ mode }: HeaderProps) {
+  const { carts, activeId } = useCarts();
+  const activeCart = carts.find((cart) => cart.id === activeId);
+  const cartCount = activeCart?.items.reduce((total, item) => total + item.quantity, 0) ?? 0;
   const [location, navigate] = useLocation();
   const [storedMode, setStoredMode] = useState<"client" | "admin" | "seller">("client");
   const effectiveMode = mode ?? storedMode;
@@ -119,17 +123,15 @@ export function Header({ mode }: HeaderProps) {
           <div className="flex-1" />
 
           {/* Cart + client badge */}
-          {!isAdmin && <button className="hidden md:flex items-center gap-2 bg-white/8 hover:bg-white/15 border border-white/15 rounded-lg px-3 h-9 text-white transition-colors relative">
+          {!isAdmin && <Link href="/carrito" aria-label={`Ver carrito, ${cartCount} unidades`} className="hidden md:flex items-center gap-2 bg-white/8 hover:bg-white/15 border border-white/15 rounded-lg px-3 h-9 text-white transition-colors relative">
             <div className="relative">
               <ShoppingCart className="w-4 h-4" />
-              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center leading-none">
-                2
-              </span>
+              {cartCount > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-black rounded-full min-w-4 h-4 px-0.5 flex items-center justify-center leading-none">{cartCount > 99 ? "99+" : cartCount}</span>}
             </div>
-            <span className="bg-intercap-blue-main text-white text-[9px] font-black rounded-md px-4 h-[18px] flex items-center justify-center tracking-tight ml-0.5">
-              Baterias
+            <span className="max-w-28 truncate bg-intercap-blue-main text-white text-[9px] font-black rounded-md px-2 h-[18px] flex items-center justify-center tracking-tight ml-0.5" title={activeCart?.name || "Mi carrito"}>
+              {activeCart?.name || "Mi carrito"}
             </span>
-          </button>}
+          </Link>}
 
           {/* Brand name */}
           <span className="hidden lg:block text-white font-black text-[13px] tracking-widest uppercase ml-2">

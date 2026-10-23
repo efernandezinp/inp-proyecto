@@ -22,8 +22,8 @@ const landingUserLinks = [
 const portalUserLinks = [
   { label: "Mi cuenta", href: "/home" },
   { label: "Catálogo", href: "/catalogo" },
-  { label: "Mis carritos", href: "#" },
-  { label: "Pedidos", href: "#" },
+  { label: "Mis carritos", href: "/carrito" },
+  { label: "Pedidos", href: "/pedidos" },
   { label: "Cuenta corriente", href: "#" },
   { label: "Informar un pago", href: "#" },
   { label: "Consultas y reclamos", href: "#" },

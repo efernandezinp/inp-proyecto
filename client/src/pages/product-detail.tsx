@@ -26,6 +26,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { addToCart } from "@/lib/cart";
 
 // Mock Data based on the provided URL
 const PRODUCT = {
@@ -210,7 +211,7 @@ export default function ProductDetail() {
 
               {/* Actions */}
               <div className="flex gap-2 pt-4">
-                <Button className="flex-1 bg-[#007cc3] hover:bg-[#006bb3] text-white font-bold h-12 text-lg">
+                <Button onClick={() => addToCart({ code: PRODUCT.code, title: PRODUCT.title, brand: PRODUCT.brand, image: PRODUCT.images[0], price: PRODUCT.price }, quantity)} className="flex-1 bg-[#007cc3] hover:bg-[#006bb3] text-white font-bold h-12 text-lg">
                   <ShoppingCart className="mr-2 h-5 w-5" />
                   AGREGAR AL CARRITO
                 </Button>
