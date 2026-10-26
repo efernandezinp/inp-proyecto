@@ -1,28 +1,89 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "wouter";
-import { CalendarDays, Check, ClipboardList, CreditCard, FileText, Link2, MapPin, Minus, Package, Plus, ShoppingCart, Tag, Trash2, X } from "lucide-react";
+import { CalendarDays, Check, ClipboardList, CreditCard, FileSpreadsheet, FileText, Link2, MapPin, Minus, Package, Plus, ShoppingCart, Tag, Trash2, Truck, X } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { clearCart, createCart, deleteCart, removeFromCart, selectCart, setCartQuantity, updateCart, updateCheckout, useCarts, WHOLESALE_ADDRESSES } from "@/lib/cart";
-import { calculateCheckout, checkoutErrors, shippingEstimate, SIMULATED_GATEWAY_RATE } from "@/lib/checkout";
-import { CheckoutModeSelector, DropshipCheckoutForm, DropshipPriceSection } from "@/components/cart/CheckoutOptions";
+import { addToCart, clearCart, createCart, deleteCart, removeFromCart, selectCart, setCartQuantity, updateCart, updateCheckout, useCarts, WHOLESALE_ADDRESSES } from "@/lib/cart";
+import { calculateCheckout, checkoutErrors, shippingEstimate } from "@/lib/checkout";
+import { CheckoutModeSelector, DropshipCheckoutForm } from "@/components/cart/CheckoutOptions";
+import { PRODUCTS } from "@/lib/products";
 
 const money = (value: number) => new Intl.NumberFormat("es-AR", {
   style: "currency", currency: "ARS", minimumFractionDigits: 2, maximumFractionDigits: 2,
 }).format(value);
+const productByCode = new Map(PRODUCTS.map((product) => [product.code, product]));
+const weightByCode = new Map(PRODUCTS.map((product) => [product.code, product.weightKg]));
+const formatWeight = (kg: number) => `${new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(kg)} kg`;
+
+function parseExcelCsv(contents: string): Array<{ code: string; quantity: number }> {
+  const firstLine = contents.split(/\r?\n/, 1)[0] ?? "";
+  const separator = [";", "\t", ","].sort((a, b) => firstLine.split(b).length - firstLine.split(a).length)[0];
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let quoted = false;
+  for (let index = 0; index < contents.length; index++) {
+    const character = contents[index];
+    if (character === '"') {
+      if (quoted && contents[index + 1] === '"') { field += '"'; index++; }
+      else quoted = !quoted;
+    } else if (character === separator && !quoted) {
+      row.push(field.trim()); field = "";
+    } else if ((character === "\n" || character === "\r") && !quoted) {
+      if (character === "\r" && contents[index + 1] === "\n") index++;
+      row.push(field.trim());
+      if (row.some(Boolean)) rows.push(row);
+      row = []; field = "";
+    } else field += character;
+  }
+  row.push(field.trim());
+  if (row.some(Boolean)) rows.push(row);
+  const headers = rows[0]?.map((value) => value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f\ufeff]/g, "")) ?? [];
+  const codeIndex = headers.findIndex((value) => /^(codigo|cod|sku|producto)$/.test(value));
+  const quantityIndex = headers.findIndex((value) => /^(cantidad|cant|unidades)$/.test(value));
+  const data = codeIndex >= 0 ? rows.slice(1) : rows;
+  return data.map((cells) => ({
+    code: String(cells[codeIndex >= 0 ? codeIndex : 0] ?? "").trim(),
+    quantity: Number(cells[quantityIndex >= 0 ? quantityIndex : 1] ?? 1),
+  })).filter(({ code, quantity }) => /^\d{12}$/.test(code) && Number.isSafeInteger(quantity) && quantity > 0);
+}
 
 export default function Cart() {
   const { carts, activeId } = useCarts();
   const active = carts.find((cart) => cart.id === activeId);
   const items = active?.items ?? [];
   const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const shippingCost = active?.checkout.mode === "dropship" && items.length > 0 ? shippingEstimate(active) : 0;
+  const totalWithShipping = total + shippingCost;
+  const cartLineCount = items.length + (shippingCost > 0 ? 1 : 0);
   const units = items.reduce((sum, item) => sum + item.quantity, 0);
+  const estimatedWeightKg = items.reduce((sum, item) => sum + (weightByCode.get(item.code) ?? 0) * item.quantity, 0);
+  const weightLabel = items.some((item) => weightByCode.get(item.code) == null)
+    ? "Sin datos"
+    : `≈ ${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 }).format(estimatedWeightKg)} kg`;
   const financials = active ? calculateCheckout(active) : null;
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [checkoutAttempted, setCheckoutAttempted] = useState(false);
   const [paymentPreviewOpen, setPaymentPreviewOpen] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [importMessage, setImportMessage] = useState("");
   const checkoutIssues = checkoutAttempted && active ? checkoutErrors(active) : [];
+
+  const importCsv = async (file?: File) => {
+    if (!file) return;
+    try {
+      const rows = parseExcelCsv(await file.text());
+      const known = rows.filter(({ code }) => productByCode.has(code));
+      known.forEach(({ code, quantity }) => addToCart(productByCode.get(code)!, quantity));
+      setImportMessage(known.length
+        ? `${known.length} artículos importados${rows.length > known.length ? `; ${rows.length - known.length} códigos no encontrados` : ""}.`
+        : "No se encontraron códigos válidos. Usá un CSV de Excel con columnas Código y Cantidad.");
+    } catch {
+      setImportMessage("No se pudo leer el archivo. Exportá la hoja como CSV e intentá nuevamente.");
+    }
+    if (importInputRef.current) importInputRef.current.value = "";
+  };
 
   const switchCart = (id: string) => {
     selectCart(id);
@@ -115,46 +176,71 @@ export default function Cart() {
                 </label>
               </section>}
 
-              {active.checkout.mode === "dropship" && <><DropshipCheckoutForm cart={active} /><DropshipPriceSection cart={active} /></>}
+              {active.checkout.mode === "dropship" && <DropshipCheckoutForm cart={active} />}
 
               <section aria-label="Artículos del carrito" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
-                  <h2 className="flex items-center gap-2 text-xs font-black uppercase tracking-wide"><Package className="h-4 w-4" /> Artículos ({items.length})</h2>
-                  <Link href="/catalogo" className="rounded-lg bg-[#001f3f] px-3 py-2 text-[10px] font-black uppercase text-white transition hover:bg-[#006ad8]">+ Agregar artículos</Link>
+                  <h2 className="flex items-center gap-2 text-xs font-black uppercase tracking-wide"><Package className="h-4 w-4" /> Artículos ({cartLineCount})</h2>
+                  <div className="flex items-center gap-3">
+                    <input ref={importInputRef} type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values" onChange={(event) => void importCsv(event.target.files?.[0])} className="hidden" aria-label="Seleccionar CSV exportado desde Excel" />
+                    <button type="button" onClick={() => importInputRef.current?.click()} title="Importar CSV exportado desde Excel con columnas Código y Cantidad" className="inline-flex items-center gap-2 rounded-lg bg-[#001f3f] px-3 py-2 text-[10px] font-black uppercase text-white shadow-sm transition hover:bg-[#006ad8]"><FileSpreadsheet className="h-3.5 w-3.5" /> Importar Excel</button>
+                  </div>
                 </div>
+                {importMessage && <p role="status" className="border-b border-slate-100 px-5 py-2 text-xs text-slate-600 sm:px-6">{importMessage}</p>}
                 {items.length === 0 ? (
                   <div className="px-6 py-16 text-center">
                     <ShoppingCart className="mx-auto h-10 w-10 text-slate-300" />
                     <p className="mt-4 text-sm font-bold">Este carrito está vacío</p>
                     <p className="mt-1 text-xs text-slate-500">Elegí productos del catálogo para el carrito activo.</p>
+                    <Link href="/catalogo" className="mt-4 inline-block rounded-lg bg-[#001f3f] px-4 py-2 text-[10px] font-black uppercase text-white hover:bg-[#006ad8]">Agregar artículos</Link>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[720px] table-fixed text-left">
+                    <table className="w-full min-w-[900px] table-fixed text-left">
                       <thead className="border-b border-slate-200 bg-white text-[10px] font-bold uppercase text-slate-500">
-                        <tr><th className="w-[43%] px-5 py-3 sm:px-6">Producto</th><th className="w-[16%] px-2 py-3 text-center">Cant.</th><th className="w-[18%] px-2 py-3 text-right">Unit. c/IVA</th><th className="w-[18%] px-2 py-3 text-right">Total c/IVA</th><th className="w-[5%] px-2 py-3" /></tr>
+                        <tr><th className="w-[43%] px-5 py-3 sm:px-6">Producto</th><th className="w-[8%] border-l border-slate-100 px-2 py-3 text-center">Peso T.</th><th className="w-[9%] border-l border-slate-100 px-2 py-3 text-center">Cant.</th><th className="w-[18%] border-l border-slate-100 px-2 py-3 text-center">Unit. c/IVA</th><th className="w-[17%] border-l border-slate-100 px-2 py-3 text-center">Total c/IVA</th><th className="w-[5%] px-2 py-3" /></tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {items.map((item) => (
                           <tr key={item.code} className="align-middle">
-                            <td className="px-5 py-5 sm:px-6">
+                            <td className="px-5 py-8 sm:px-6">
                               <div className="flex items-center gap-4">
                                 <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-slate-100 bg-white p-1.5 shadow-sm"><img src={item.image} alt="" className="max-h-full max-w-full object-contain" /></div>
-                                <div className="min-w-0"><p className="text-[10px] font-bold uppercase text-slate-400">{item.brand}</p><p className="mt-1 text-xs font-black leading-4 text-[#001f3f]">{item.title}</p><p className="mt-1 text-[10px] text-slate-400">{item.code}</p></div>
+                                <div className="min-w-0"><p className="text-[11px] font-bold uppercase text-slate-400">{item.code.slice(3, 6)}</p><p className="mt-1 text-xs font-black leading-4 text-[#001f3f]">{item.title}</p><p className="mt-1 text-[10px] text-slate-400">{item.code}</p></div>
                               </div>
                             </td>
-                            <td className="px-2 py-5 text-center">
+                            <td className="border-l border-slate-100 px-1 py-8 text-center">
+                              <span className="mb-1 block text-[9px] font-bold uppercase text-slate-400">Peso T.</span>
+                              <span className="whitespace-nowrap text-xs font-black text-[#001f3f]" title={productByCode.get(item.code)?.weightEstimated ? "Peso estimado" : "Peso del producto"}>{weightByCode.get(item.code) == null ? "—" : formatWeight(weightByCode.get(item.code)! * item.quantity)}</span>
+                            </td>
+                            <td className="border-l border-slate-100 px-1 py-8 text-center">
+                              <span className="mb-1 block text-[9px] font-bold uppercase text-slate-400">Cant.</span>
                               <div className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-[#f7f8fa]">
-                                <button type="button" onClick={() => setCartQuantity(item.code, item.quantity - 1)} aria-label={`Restar ${item.title}`} className="flex h-full w-8 items-center justify-center hover:bg-slate-200"><Minus className="h-3 w-3" /></button>
-                                <span className="min-w-7 text-xs font-black">{item.quantity}</span>
-                                <button type="button" onClick={() => setCartQuantity(item.code, item.quantity + 1)} aria-label={`Sumar ${item.title}`} className="flex h-full w-8 items-center justify-center hover:bg-slate-200"><Plus className="h-3 w-3" /></button>
+                                <button type="button" onClick={() => setCartQuantity(item.code, item.quantity - 1)} aria-label={`Restar ${item.title}`} className="flex h-full w-6 items-center justify-center rounded-md bg-white shadow-sm hover:bg-slate-100"><Minus className="h-3 w-3" /></button>
+                                <span className="min-w-6 text-xs font-black">{item.quantity}</span>
+                                <button type="button" onClick={() => setCartQuantity(item.code, item.quantity + 1)} aria-label={`Sumar ${item.title}`} className="flex h-full w-6 items-center justify-center rounded-md bg-white shadow-sm hover:bg-slate-100"><Plus className="h-3 w-3" /></button>
                               </div>
                             </td>
-                            <td className="px-2 py-5 text-right text-xs font-semibold">{money(item.price)}</td>
-                            <td className="px-2 py-5 text-right text-sm font-black">{money(item.price * item.quantity)}</td>
-                            <td className="px-2 py-5 text-center"><button type="button" onClick={() => removeFromCart(item.code)} aria-label={`Quitar ${item.title}`} className="rounded p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-4 w-4" /></button></td>
+                            <td className="border-l border-slate-100 px-2 py-8 text-center"><span className="mb-1 block text-[9px] font-bold uppercase text-slate-400">Unit. c/IVA</span><span className="whitespace-nowrap text-xs font-black">{money(item.price)}</span></td>
+                            <td className="border-l border-slate-100 px-2 py-8 text-center"><span className="mb-1 block text-[10px] font-black uppercase text-slate-400">Total c/IVA</span><span className="whitespace-nowrap text-base font-black">{money(item.price * item.quantity)}</span></td>
+                            <td className="px-1 py-8 text-center"><button type="button" onClick={() => removeFromCart(item.code)} aria-label={`Quitar ${item.title}`} className="rounded p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-4 w-4" /></button></td>
                           </tr>
                         ))}
+                        {shippingCost > 0 && (
+                          <tr className="bg-emerald-50/50 align-middle">
+                            <td className="px-5 py-5 sm:px-6">
+                              <div className="flex items-center gap-4">
+                                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-white text-emerald-600 shadow-sm"><Truck className="h-7 w-7" /></div>
+                                <div className="min-w-0"><p className="text-[10px] font-bold uppercase text-emerald-700">Servicio de envío</p><p className="mt-1 text-xs font-black leading-4 text-[#001f3f]">Envío dropshipping</p><p className="mt-1 text-[10px] text-slate-500">{[active.checkout.recipient.city, active.checkout.recipient.province, active.checkout.recipient.postalCode && `CP ${active.checkout.recipient.postalCode}`].filter(Boolean).join(", ") || "Destino por definir"} · costo estimado</p></div>
+                              </div>
+                            </td>
+                            <td className="border-l border-slate-100 px-2 py-5 text-center text-xs text-slate-400">—</td>
+                            <td className="border-l border-slate-100 px-2 py-5 text-center text-xs font-black">1</td>
+                            <td className="border-l border-slate-100 px-2 py-5 text-center text-xs font-semibold">{money(shippingCost)}</td>
+                            <td className="border-l border-slate-100 px-2 py-5 text-center text-sm font-black">{money(shippingCost)}</td>
+                            <td className="px-2 py-5" />
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -169,7 +255,7 @@ export default function Cart() {
               </div>
               <div className="mt-4 space-y-3">
                 <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/10 px-4 py-3"><span className="text-[10px] font-bold uppercase text-slate-300">Subtotal</span><strong className="text-sm">{money(total)}</strong></div>
-                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/10 px-4 py-3"><span className="text-[10px] font-bold uppercase text-slate-300">Peso total</span><strong className="text-sm" title="El catálogo no incluye el peso unitario de los artículos">Sin datos</strong></div>
+                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/10 px-4 py-3"><span className="text-[10px] font-bold uppercase text-slate-300">Peso total aprox.</span><strong className="text-sm">{weightLabel}</strong></div>
               </div>
               <div className="mt-8 flex items-center justify-between border-t border-white/10 pt-6"><span className="text-[10px] font-black uppercase tracking-wide text-slate-300">Total final</span><div className="text-right"><strong className="block text-xl font-black">{money(total)}</strong><span className="text-[9px] italic text-slate-400">IVA incluido (estimación)</span></div></div>
               {checkoutIssues.length > 0 && <div role="alert" className="mt-5 rounded-xl border border-red-400/40 bg-red-500/10 p-3 text-[11px] text-red-100"><p className="mb-2 font-black uppercase">Completá estos datos</p><ul className="list-inside list-disc space-y-1">{checkoutIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul></div>}
@@ -186,11 +272,13 @@ export default function Cart() {
               </div>
               <div className="mt-5 space-y-3">
                 <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/10 px-4 py-3"><span className="text-[10px] font-bold uppercase text-slate-300">Subtotal</span><strong className="text-sm">{money(total)}</strong></div>
-                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/10 px-4 py-3"><span className="text-[10px] font-bold uppercase text-slate-300">Unidades</span><strong className="text-sm">{units}</strong></div>
-                {active.checkout.mode === "dropship" && financials && <div className="space-y-1.5 rounded-2xl border border-emerald-400/30 bg-emerald-900/30 px-4 py-3 text-[11px]"><div className="flex justify-between gap-3"><span className="text-emerald-200">Cobro al Consumidor Final</span><strong>{money(financials.customerTotal)}</strong></div><div className="flex justify-between gap-3 text-slate-300"><span>− Productos</span><span>{money(financials.subtotal)}</span></div><div className="flex justify-between gap-3 text-slate-300"><span>− Envío a tu cargo</span><span>{money(financials.sellerShipping)}</span></div><div className="flex justify-between gap-3 text-slate-300"><span>− Comisión simulada ({SIMULATED_GATEWAY_RATE * 100}%)</span><span>{money(financials.gatewayFee)}</span></div><div className="flex justify-between gap-3 border-t border-white/10 pt-1.5"><span className="text-emerald-200">Resultado estimado</span><strong className={financials.margin >= 0 ? "text-emerald-300" : "text-red-300"}>{money(financials.margin)}</strong></div></div>}
+                {shippingCost > 0 && <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/10 px-4 py-3"><span className="text-[10px] font-bold uppercase text-slate-300">Envío dropshipping</span><strong className="text-sm">{money(shippingCost)}</strong></div>}
+                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/10 px-4 py-3"><span className="text-[10px] font-bold uppercase text-slate-300">Peso total aprox.</span><strong className="text-sm">{weightLabel}</strong></div>
+                <label className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/10 px-4 py-3"><span className="text-[10px] font-bold uppercase text-slate-300">Markup</span><span className="flex items-center gap-1 text-sm font-bold"><input type="number" min="0" step="0.01" value={active.checkout.markupPercent} onChange={(event) => updateCheckout(active.id, { markupPercent: Math.max(0, Number(event.target.value) || 0) })} aria-label="Markup en porcentaje" className="w-20 rounded-lg border border-white/20 bg-white/10 px-2 py-1 text-right text-white outline-none focus:border-emerald-400" />%</span></label>
+                {financials && <div className="flex items-center justify-between rounded-2xl border border-emerald-400/30 bg-emerald-900/30 px-4 py-3"><span className="text-[10px] font-bold uppercase text-emerald-200">Ganancia</span><strong className="text-sm text-emerald-300">{money(financials.markupAmount)}</strong></div>}
               </div>
-              <div className="mt-8 flex items-center justify-between border-t border-white/10 pt-6"><span className="text-[10px] font-black uppercase tracking-wide text-slate-300">Total final</span><strong className="text-xl font-black">{money(total)}</strong></div>
-              <p className="mt-2 text-right text-[10px] italic text-slate-400">Costo de productos según catálogo</p>
+              <div className="mt-8 flex items-center justify-between border-t border-white/10 pt-6"><span className="text-[10px] font-black uppercase tracking-wide text-slate-300">Total final</span><strong className="text-xl font-black">{money(financials?.customerTotal ?? totalWithShipping)}</strong></div>
+              <p className="mt-2 text-right text-[10px] italic text-slate-400">Productos, envío estimado y markup</p>
 
               {active.checkout.status !== "draft" && <div className="mt-6 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3 text-[11px] leading-5 text-emerald-200">
                 {active.checkout.status === "b2b-confirmed" && "Confirmación mayorista simulada. El carrito permanece guardado; no se envió un pedido real."}
@@ -225,7 +313,7 @@ export default function Cart() {
         <div role="dialog" aria-modal="true" aria-labelledby="payment-preview-title" className="w-full max-w-md rounded-3xl bg-white p-6 text-[#001f3f] shadow-2xl">
           <div className="flex items-start justify-between gap-3"><div><span className="rounded bg-emerald-100 px-2 py-1 text-[10px] font-black uppercase text-emerald-800">Simulación</span><h2 id="payment-preview-title" className="mt-3 text-xl font-black">Vista previa de pago</h2></div><button type="button" onClick={() => setPaymentPreviewOpen(false)} aria-label="Cerrar" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button></div>
           <p className="mt-2 text-sm text-slate-600">Pedido para <strong>{active.checkout.recipient.name}</strong>. Este importe sería el que abonaría el Consumidor Final.</p>
-          <div className="mt-5 space-y-3 rounded-xl bg-slate-50 p-4 text-sm"><div className="flex justify-between gap-3"><span>Productos</span><strong>{money(active.checkout.salePrice)}</strong></div><div className="flex justify-between gap-3"><span>Envío a cargo del Consumidor Final</span><strong>{money(active.checkout.buyerPaysShipping ? shippingEstimate(active) : 0)}</strong></div><div className="flex justify-between gap-3 border-t border-slate-200 pt-3 text-base font-black"><span>Total a pagar</span><span>{money(financials.customerTotal)}</span></div></div>
+          <div className="mt-5 space-y-3 rounded-xl bg-slate-50 p-4 text-sm"><div className="flex justify-between gap-3"><span>Productos</span><strong>{money(financials.subtotal)}</strong></div><div className="flex justify-between gap-3"><span>Envío</span><strong>{money(financials.shippingCost)}</strong></div><div className="flex justify-between gap-3"><span>Markup ({active.checkout.markupPercent}%)</span><strong>{money(financials.markupAmount)}</strong></div><div className="flex justify-between gap-3 border-t border-slate-200 pt-3 text-base font-black"><span>Total a pagar</span><span>{money(financials.customerTotal)}</span></div></div>
           <p className="mt-4 text-xs leading-5 text-slate-500">El archivo de referencia utiliza un enlace ficticio. Esta vista no crea enlaces ni procesa pagos reales.</p>
           <button type="button" onClick={() => { updateCheckout(active.id, { status: "paid" }); setPaymentPreviewOpen(false); }} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-xs font-black uppercase text-white hover:bg-emerald-700"><CreditCard className="h-4 w-4" /> Simular pago del Consumidor Final</button>
         </div>

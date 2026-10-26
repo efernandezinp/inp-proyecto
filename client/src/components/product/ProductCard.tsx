@@ -13,7 +13,8 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, viewMode = 'grid', showOfferDetails = false }: ProductCardProps) {
-  const { id, title, price, originalPrice, image, brand, stock, isNew, code } = product;
+  const { id, title, price, originalPrice, image, brand, stock, isNew, code, weightKg, weightEstimated } = product;
+  const weightLabel = weightKg == null ? null : `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 3 }).format(weightKg)} kg`;
   const [quantity, setQuantity] = useState(1);
   const addedQuantity = useCart().find((item) => item.code === code)?.quantity ?? 0;
 
@@ -124,6 +125,7 @@ export function ProductCard({ product, viewMode = 'grid', showOfferDetails = fal
                 <ul className={styles.presentacionList}>
                   <li>1° Envase Botella 1 UNI</li>
                   <li>2° Envase Cajas 12 UNI</li>
+                  {weightLabel && <li>Peso {weightEstimated ? 'aproximado' : 'unitario'}: {weightLabel}</li>}
                 </ul>
               </div>
 
@@ -206,6 +208,7 @@ export function ProductCard({ product, viewMode = 'grid', showOfferDetails = fal
         <h3 className={styles.title} title={title}>{title}</h3>
         <div className={styles.code}>Cod: {code}</div>
         <div className={styles.presentacion}>1° Envase Caja 1 UNI</div>
+        {weightLabel && <div className={styles.weightLine}>Peso {weightEstimated ? 'aprox.' : 'unitario'}: {weightLabel}</div>}
 
         <div className={styles.prices}>
           <div className={styles.priceLabel}>PRECIO FINAL:</div>

@@ -120,7 +120,7 @@
 .presentacion {
   align-self: flex-start;
   max-width: 100%;
-  margin-bottom: 16px;
+  margin-bottom: 6px;
   padding: 4px 7px;
   overflow: hidden;
   border: 1px solid #edf0f4;
@@ -132,6 +132,14 @@
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.weightLine {
+  margin-bottom: 12px;
+  color: #718096;
+  font-size: 10px;
+  line-height: 13px;
+  font-weight: 700;
 }
 
 .presentacionTitle {

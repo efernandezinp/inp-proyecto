@@ -11,6 +11,11 @@ import ProductDetail from "@/pages/product-detail";
 import QuickHelp from "@/pages/quick-help";
 import Orders from "@/pages/orders";
 import Cart from "@/pages/cart";
+import Inpay from "@/pages/inpay";
+import CurrentAccount from "@/pages/current-account";
+
+function PaymentReportPage() { return <CurrentAccount initialReportOpen />; }
+function CurrentAccountPage() { return <CurrentAccount />; }
 
 function Router() {
   return (
@@ -30,6 +35,9 @@ function Router() {
       <Route path="/info/ayuda-rapida" component={QuickHelp} />
       <Route path="/pedidos" component={Orders} />
       <Route path="/carrito" component={Cart} />
+      <Route path="/inpay" component={Inpay} />
+      <Route path="/cuenta-corriente/informar-pago" component={PaymentReportPage} />
+      <Route path="/cuenta-corriente" component={CurrentAccountPage} />
       <Route component={NotFound} />
     </Switch>
   );

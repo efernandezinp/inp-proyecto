@@ -14,6 +14,8 @@ interface ProductCardProps {
     originalPrice?: number;
     image: string;
     isNew?: boolean;
+    weightKg?: number;
+    weightEstimated?: boolean;
   };
 }
 
@@ -69,6 +71,7 @@ export function ProductCard({ product }: ProductCardProps) {
           </Link>
         
         <p className="text-xs text-gray-400 mb-4 font-mono">Cod: {product.code}</p>
+        {product.weightKg != null && <p className="mb-3 text-[11px] font-semibold text-slate-500">Peso {product.weightEstimated ? "aprox." : "unitario"}: {new Intl.NumberFormat("es-AR", { maximumFractionDigits: 3 }).format(product.weightKg)} kg</p>}
         
         <div className="mt-auto space-y-3">
           <div className="flex flex-col">

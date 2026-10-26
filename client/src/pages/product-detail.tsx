@@ -27,6 +27,7 @@ import { Separator } from "@/components/ui/separator";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { addToCart } from "@/lib/cart";
+import { PRODUCTS, type Product } from "@/lib/products";
 
 // Mock Data based on the provided URL
 const PRODUCT = {
@@ -106,9 +107,37 @@ const formatPrice = (price: number) => {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(price);
 };
 
+function CatalogProductDetail({ product }: { product: Product }) {
+  const [quantity, setQuantity] = useState(1);
+  const weight = product.weightKg == null ? null : new Intl.NumberFormat('es-AR', { maximumFractionDigits: 3 }).format(product.weightKg);
+
+  return <div className="flex min-h-screen flex-col bg-gray-50">
+    <Header />
+    <main className="container mx-auto flex-1 px-4 py-8">
+      <Link href="/catalogo" className="mb-5 inline-block text-sm font-semibold text-[#007cc3] hover:underline">← Volver al catálogo</Link>
+      <article className="grid gap-8 rounded-lg border border-gray-200 bg-white p-6 shadow-sm md:grid-cols-2">
+        <div className="flex min-h-72 items-center justify-center rounded-lg bg-white p-6"><img src={product.image} alt={product.title} className="max-h-96 max-w-full object-contain" /></div>
+        <div className="flex flex-col gap-4">
+          <div><p className="text-sm font-bold uppercase text-[#009ee3]">{product.brand}</p><h1 className="mt-1 text-2xl font-bold text-gray-800">{product.title}</h1><p className="mt-1 text-sm text-gray-500">Cod: {product.code}</p></div>
+          {weight && <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600">Peso {product.weightEstimated ? 'aproximado' : 'unitario'}: {weight} kg</p>}
+          <div className="border-y border-gray-100 py-4"><p className="text-xs uppercase text-gray-500">Precio c/IVA</p><strong className="text-3xl text-[#007cc3]">{formatPrice(product.price)}</strong><p className="mt-1 text-sm text-gray-400 line-through">{formatPrice(product.originalPrice)}</p></div>
+          <div className="grid grid-cols-4 gap-2 text-center text-xs">{(['NOA', 'NEA', 'BUE', 'CUYO'] as const).map((region) => <div key={region} className="rounded-lg bg-slate-50 p-2"><span className="block font-bold text-gray-500">{region === 'CUYO' ? 'CUY' : region}</span><strong className="mt-1 block text-gray-800">{product.stock[region]} uni.</strong></div>)}</div>
+          <div className="mt-auto flex gap-2 pt-4"><input type="number" min="1" value={quantity} onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))} aria-label="Cantidad" className="w-20 rounded border border-gray-300 px-2 text-center font-bold" /><Button onClick={() => addToCart(product, quantity)} className="h-12 flex-1 bg-[#007cc3] font-bold text-white hover:bg-[#006bb3]"><ShoppingCart className="mr-2 h-5 w-5" />AGREGAR AL CARRITO</Button></div>
+        </div>
+      </article>
+    </main>
+    <Footer />
+  </div>;
+}
+
 export default function ProductDetail() {
+  const [, route] = useRoute('/producto/:id');
+  const catalogProduct = PRODUCTS.find((product) => product.code === route?.id || String(product.id) === route?.id);
   const [activeImage, setActiveImage] = useState(PRODUCT.images[0]);
   const [quantity, setQuantity] = useState(1);
+
+  if (!catalogProduct) return <div className="flex min-h-screen flex-col bg-gray-50"><Header /><main className="container mx-auto flex-1 px-4 py-16 text-center"><h1 className="text-2xl font-bold text-gray-800">Producto no encontrado</h1><Link href="/catalogo" className="mt-4 inline-block text-[#007cc3] hover:underline">Volver al catálogo</Link></main><Footer /></div>;
+  if (catalogProduct && catalogProduct.code !== PRODUCT.code) return <CatalogProductDetail product={catalogProduct} />;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -165,6 +194,7 @@ export default function ProductDetail() {
                 <h2 className="text-[#009ee3] font-bold text-sm uppercase tracking-wide mb-1">{PRODUCT.brand}</h2>
                 <h1 className="text-2xl font-bold text-gray-800 leading-tight">{PRODUCT.title}</h1>
                 <p className="text-gray-500 text-sm mt-1">Cod: {PRODUCT.code}</p>
+                {catalogProduct?.weightKg != null && <p className="mt-2 text-sm font-semibold text-slate-600">Peso aproximado: {new Intl.NumberFormat('es-AR', { maximumFractionDigits: 3 }).format(catalogProduct.weightKg)} kg</p>}
               </div>
 
               <div className="space-y-1 text-sm text-gray-600">

@@ -1,7 +1,6 @@
-import { Building2, Calculator, Send, ShieldCheck, UserRound } from "lucide-react";
+import { Building2, Send, ShieldCheck, UserRound } from "lucide-react";
 import type { CheckoutMode, Recipient, SavedCart } from "@/lib/cart";
 import { updateCheckout } from "@/lib/cart";
-import { shippingEstimate } from "@/lib/checkout";
 
 const inputClass = "mt-1 h-8 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100";
 const labelClass = "text-[10px] font-black uppercase tracking-wide text-slate-600";
@@ -21,10 +20,6 @@ export function CheckoutModeSelector({ cart }: { cart: SavedCart }) {
     { value: "dropship", icon: Send, title: "Pedido dropshipping", badge: "Directo al Consumidor Final", description: "Preparamos el envío para tu Consumidor Final y calculás su precio de venta." },
   ];
   return <section aria-label="Modalidad de despacho" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-      <div><div className="flex items-center gap-2"><span className="rounded bg-cyan-100 px-2 py-0.5 text-[10px] font-black uppercase text-cyan-800">Paso 1</span><h2 className="text-sm font-black uppercase">Modalidad de despacho y facturación</h2></div>
-        <p className="mt-1 text-xs text-slate-500">Elegí cómo querés preparar este carrito.</p></div>
-    </div>
     <div className="grid gap-2.5 md:grid-cols-2">
       {options.map((option) => {
         const Icon = option.icon;
@@ -57,26 +52,6 @@ export function DropshipCheckoutForm({ cart }: { cart: SavedCart }) {
       <RecipientField cart={cart} field="city" label="Localidad" className="lg:col-span-4" />
       <RecipientField cart={cart} field="province" label="Provincia" className="lg:col-span-3" />
       <RecipientField cart={cart} field="postalCode" label="Código postal" className="lg:col-span-2" />
-    </div>
-
-  </section>;
-}
-
-export function DropshipPriceSection({ cart }: { cart: SavedCart }) {
-  const { checkout } = cart;
-  return <section aria-label="Precio de venta dropshipping" className="rounded-2xl border-2 border-emerald-500 bg-white p-4 shadow-[0_8px_24px_rgba(16,163,81,0.14)]">
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-100 pb-3">
-      <div className="flex items-center gap-2"><span className="rounded-lg bg-emerald-600 p-2 text-white"><Calculator className="h-4 w-4" /></span><div><h2 className="text-xs font-black uppercase text-emerald-950">Precio de venta al Consumidor Final</h2><p className="text-[10px] text-emerald-700">Definí el importe de venta de este pedido.</p></div></div>
-      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase text-emerald-700">Paso 2</span>
-    </div>
-    <div className="mt-3 flex flex-wrap items-end gap-4">
-      <label className="block min-w-[220px] flex-1 sm:max-w-[360px]"><span className={labelClass}>Importe de venta *</span>
-        <span className="mt-1 flex h-12 items-center gap-2 rounded-xl border-2 border-emerald-400 bg-emerald-50 px-3 text-emerald-950 focus-within:ring-2 focus-within:ring-emerald-200"><span className="text-lg font-black">$</span><input type="number" min="0" step="0.01" value={checkout.salePrice || ""} onChange={(event) => updateCheckout(cart.id, { salePrice: Math.max(0, Number(event.target.value) || 0) })} placeholder="0,00" className="h-full min-w-0 flex-1 bg-transparent text-xl font-black outline-none" /></span>
-      </label>
-      <div className="flex flex-1 flex-col gap-2 pb-0.5">
-        <label className="flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] font-bold uppercase text-slate-700"><input type="checkbox" checked={checkout.buyerPaysShipping} onChange={(event) => updateCheckout(cart.id, { buyerPaysShipping: event.target.checked })} className="h-4 w-4 accent-emerald-600" /> Envío a cargo del Consumidor Final</label>
-        <span className="text-[10px] text-slate-500">Costo calculado a {[checkout.recipient.city, checkout.recipient.province, checkout.recipient.postalCode && `CP ${checkout.recipient.postalCode}`].filter(Boolean).join(", ") || "destino por definir"}: <strong className="text-slate-800">{new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 2 }).format(shippingEstimate(cart))}</strong></span>
-      </div>
     </div>
   </section>;
 }

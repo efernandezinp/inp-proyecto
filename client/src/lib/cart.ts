@@ -11,9 +11,8 @@ export type Recipient = {
 export type CheckoutData = {
   mode: CheckoutMode;
   recipient: Recipient;
-  salePrice: number;
+  markupPercent: number;
   shippingCost: number;
-  buyerPaysShipping: boolean;
   status: CheckoutStatus;
 };
 export type SavedCart = {
@@ -44,19 +43,22 @@ const EMPTY_RECIPIENT: Recipient = {
   apartment: "", city: "", province: "", postalCode: "",
 };
 function defaultCheckout(): CheckoutData {
-  return { mode: "b2b", recipient: { ...EMPTY_RECIPIENT }, salePrice: 0,
-    shippingCost: 0, buyerPaysShipping: true, status: "draft" };
+  return { mode: "b2b", recipient: { ...EMPTY_RECIPIENT }, markupPercent: 0,
+    shippingCost: 0, status: "draft" };
 }
-function validCheckout(value: any): CheckoutData {
+function validCheckout(value: any, items: CartItem[]): CheckoutData {
   const fallback = defaultCheckout();
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const shippingCost = typeof value?.shippingCost === "number" && Number.isFinite(value.shippingCost) && value.shippingCost > 0 ? value.shippingCost : 13000;
+  const legacyMarkup = typeof value?.salePrice === "number" && Number.isFinite(value.salePrice) && subtotal + shippingCost > 0
+    ? Math.max(0, (value.salePrice - subtotal) / (subtotal + shippingCost) * 100) : 0;
   const recipient = Object.fromEntries(Object.keys(EMPTY_RECIPIENT).map((key) =>
     [key, typeof value?.recipient?.[key] === "string" ? value.recipient[key] : ""])) as Recipient;
   return {
     mode: value?.mode === "dropship" ? "dropship" : "b2b",
     recipient,
-    salePrice: typeof value?.salePrice === "number" && Number.isFinite(value.salePrice) && value.salePrice >= 0 ? value.salePrice : 0,
+    markupPercent: typeof value?.markupPercent === "number" && Number.isFinite(value.markupPercent) && value.markupPercent >= 0 ? value.markupPercent : legacyMarkup,
     shippingCost: typeof value?.shippingCost === "number" && Number.isFinite(value.shippingCost) && value.shippingCost >= 0 ? value.shippingCost : 0,
-    buyerPaysShipping: typeof value?.buyerPaysShipping === "boolean" ? value.buyerPaysShipping : true,
     status: ["b2b-confirmed", "awaiting-payment", "paid"].includes(value?.status) ? value.status : fallback.status,
   };
 }
@@ -93,7 +95,7 @@ function loadState(): CartState {
             address: typeof cart.address === "string" ? cart.address : DEFAULT_ADDRESS,
             createdAt: typeof cart.createdAt === "string" ? cart.createdAt : new Date().toISOString(),
             items: validItems(cart.items),
-            checkout: validCheckout(cart.checkout),
+            checkout: validCheckout(cart.checkout, validItems(cart.items)),
           }));
         return { carts, activeId: carts.some((cart) => cart.id === parsed.activeId) ? parsed.activeId : carts[0]?.id ?? null };
       }

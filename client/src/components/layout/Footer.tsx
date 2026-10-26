@@ -1,6 +1,8 @@
 import { Facebook, Headphones, Instagram, Linkedin, MapPin, Truck, WalletCards, Youtube } from "lucide-react";
 import { Link } from "wouter";
+import { useState } from "react";
 import intercapLogo from "@assets/intercap-logo-blanco.png";
+import { ClaimsModal } from "@/components/layout/ClaimsModal";
 
 type FooterVariant = "landing" | "portal";
 
@@ -24,25 +26,27 @@ const portalUserLinks = [
   { label: "Catálogo", href: "/catalogo" },
   { label: "Mis carritos", href: "/carrito" },
   { label: "Pedidos", href: "/pedidos" },
-  { label: "Cuenta corriente", href: "#" },
-  { label: "Informar un pago", href: "#" },
-  { label: "Consultas y reclamos", href: "#" },
+  { label: "Cuenta corriente", href: "/cuenta-corriente" },
+  { label: "Informar un pago", href: "/cuenta-corriente/informar-pago" },
+  { label: "Consultas y reclamos", href: "/reclamos" },
 ];
 
 const landingInfoLinks = [
   { label: "Sobre nosotros", href: "/info/ayuda-rapida/sobre-nosotros" }, { label: "Sucursales", href: "/info/ayuda-rapida/sucursales" }, { label: "Preguntas frecuentes", href: "/info/ayuda-rapida" }, { label: "Información útil", href: "/info/ayuda-rapida/informacion-util" }, { label: "Ayuda", href: "/info/ayuda-rapida" },
 ];
 const portalInfoLinks = [
-  { label: "Sobre nosotros", href: "/info/ayuda-rapida/sobre-nosotros" }, { label: "Sucursales", href: "/info/ayuda-rapida/sucursales" }, { label: "Cobrá con Inpay", href: "#" }, { label: "Bancos", href: "/info/ayuda-rapida/bancos" }, { label: "Preguntas frecuentes", href: "/info/ayuda-rapida" }, { label: "Información útil", href: "/info/ayuda-rapida/informacion-util" }, { label: "Ayuda", href: "/info/ayuda-rapida" },
+  { label: "Sobre nosotros", href: "/info/ayuda-rapida/sobre-nosotros" }, { label: "Sucursales", href: "/info/ayuda-rapida/sucursales" }, { label: "Cobrá con Inpay", href: "/inpay" }, { label: "Bancos", href: "/info/ayuda-rapida/bancos" }, { label: "Preguntas frecuentes", href: "/info/ayuda-rapida" }, { label: "Información útil", href: "/info/ayuda-rapida/informacion-util" }, { label: "Ayuda", href: "/info/ayuda-rapida" },
 ];
 
-function FooterLink({ label, href }: { label: string; href: string }) {
+function FooterLink({ label, href, onClaimsClick }: { label: string; href: string; onClaimsClick: () => void }) {
   const className = "block w-fit transition hover:text-blue-600 hover:underline";
+  if (href === "/reclamos") return <button type="button" className={className} onClick={onClaimsClick}>{label}</button>;
   if (href.startsWith("http") || href.startsWith("#")) return <a className={className} href={href}>{label}</a>;
   return <Link className={className} href={href}>{label}</Link>;
 }
 
 export function Footer({ variant = "portal" }: { variant?: FooterVariant }) {
+  const [claimsOpen, setClaimsOpen] = useState(false);
   const isLanding = variant === "landing";
   const userLinks = isLanding ? landingUserLinks : portalUserLinks;
   const infoLinks = isLanding ? landingInfoLinks : portalInfoLinks;
@@ -90,13 +94,13 @@ export function Footer({ variant = "portal" }: { variant?: FooterVariant }) {
         <div>
           <h3 className="text-xl font-medium text-[#39328b]">Usuarios</h3>
           <ul className="mt-3 space-y-1 text-sm leading-5">
-            {userLinks.map((link) => <li key={link.label}><FooterLink {...link} /></li>)}
+            {userLinks.map((link) => <li key={link.label}><FooterLink {...link} onClaimsClick={() => setClaimsOpen(true)} /></li>)}
           </ul>
         </div>
         <div>
           <h3 className="text-xl font-medium text-[#39328b]">Información</h3>
           <ul className="mt-3 space-y-1 text-sm leading-5">
-            {infoLinks.map((link) => <li key={link.label}><FooterLink {...link} /></li>)}
+            {infoLinks.map((link) => <li key={link.label}><FooterLink {...link} onClaimsClick={() => setClaimsOpen(true)} /></li>)}
           </ul>
         </div>
         <div>
@@ -116,6 +120,7 @@ export function Footer({ variant = "portal" }: { variant?: FooterVariant }) {
           </div>
         </div>
       </div>
+      {claimsOpen && <ClaimsModal onClose={() => setClaimsOpen(false)} />}
     </footer>
   );
 }

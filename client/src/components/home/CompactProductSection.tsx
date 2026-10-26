@@ -29,6 +29,7 @@ export function CompactProductSection({ products }: CompactProductSectionProps) 
               <span className="font-bold text-gray-900">{formatPrice(product.price)}</span>
               <span className="text-[10px] text-gray-500">+IVA</span>
             </div>
+            {product.weightKg != null && <span className="text-[10px] font-semibold text-slate-500">Peso {product.weightEstimated ? "aprox." : "unitario"}: {new Intl.NumberFormat("es-AR", { maximumFractionDigits: 3 }).format(product.weightKg)} kg</span>}
           </div>
           <div className="text-brand-orange shrink-0 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
             &rarr;

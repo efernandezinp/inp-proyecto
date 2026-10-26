@@ -1,3 +1,5 @@
+import { estimateProductWeightKg } from "./productWeights";
+
 export interface Product {
   id: number;
   brand: string;
@@ -5,6 +7,8 @@ export interface Product {
   code: string;
   price: number;
   originalPrice: number;
+  weightKg?: number;
+  weightEstimated?: boolean;
   image: string;
   stock: {
     BUE: number;
@@ -23,7 +27,7 @@ export interface Product {
 
 export const isStockAvailable = (quantity: number) => quantity > 0;
 
-export const PRODUCTS: Product[] = [
+const BASE_PRODUCTS: Product[] = [
   {
     "id": 1,
     "brand": "PIRELLI",
@@ -5817,6 +5821,7 @@ export const PRODUCTS: Product[] = [
     "code": "004001200001",
     "price": 80037.9,
     "originalPrice": 88931,
+    "weightKg": 0.17,
     "image": "https://imagenes-inp-aws.s3.amazonaws.com/imagenes/productos/004/29012019_004001200001-1_min.jpg",
     "stock": {
       "BUE": 7,
@@ -9885,6 +9890,7 @@ export const PRODUCTS: Product[] = [
     "brand": "WEGA",
     "title": "BUJIA WEGA W-M14YC (D8EA)",
     "code": "007001050001",
+    "weightKg": 0.092,
     "price": 55296,
     "originalPrice": 61440,
     "image": "https://imagenes-inp-aws.s3.amazonaws.com/imagenes/productos/007/10032023_007001050001-1_min.jpg",
@@ -13207,6 +13213,7 @@ export const PRODUCTS: Product[] = [
     "brand": "PIETCARD ELECTRONICA",
     "title": "4007 CABLE BOBINA DE ALTA NORMALIZADO: TROZOS X 25 CM",
     "code": "014007020002",
+    "weightKg": 0.03,
     "price": 99045.9,
     "originalPrice": 110051,
     "image": "https://imagenes-inp-aws.s3.amazonaws.com/imagenes/productos/22224007.jpg",
@@ -13229,6 +13236,7 @@ export const PRODUCTS: Product[] = [
     "brand": "PIETCARD ELECTRONICA",
     "title": "4006 CABLE BOBINA DE ALTA NORMALIZADO: TROZOS X 50 CM",
     "code": "014007020003",
+    "weightKg": 0.03,
     "price": 45779.4,
     "originalPrice": 50866,
     "image": "https://imagenes-inp-aws.s3.amazonaws.com/imagenes/productos/014/10032023_014007020003-1_min.jpg",
@@ -22091,6 +22099,12 @@ export const PRODUCTS: Product[] = [
     "isNew": false
   }
 ];
+
+export const PRODUCTS: Product[] = BASE_PRODUCTS.map((product) => ({
+  ...product,
+  weightKg: product.weightKg ?? estimateProductWeightKg(product),
+  weightEstimated: product.weightKg == null,
+}));
 
 export const FILTERS = {
   brands: Array.from(new Set(PRODUCTS.map(p => p.brand))).sort(),

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
 import intercapLogo from "@assets/intercap-logo-blanco.png";
 import { useCarts } from "@/lib/cart";
+import { ClaimsModal } from "@/components/layout/ClaimsModal";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +35,8 @@ export function Header({ mode }: HeaderProps) {
   const cartCount = activeCart?.items.reduce((total, item) => total + item.quantity, 0) ?? 0;
   const [location, navigate] = useLocation();
   const [storedMode, setStoredMode] = useState<"client" | "admin" | "seller">("client");
+  const [claimsOpen, setClaimsOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const effectiveMode = mode ?? storedMode;
   const isAdmin = effectiveMode === "admin";
   const isSeller = effectiveMode === "seller";
@@ -259,7 +262,7 @@ export function Header({ mode }: HeaderProps) {
           </DropdownMenu>
 
           {/* Mobile trigger */}
-          <Sheet>
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>
               <Button size="icon" variant="ghost" className="order-3 ml-1 text-white lg:hidden">
                 <Menu className="w-5 h-5" />
@@ -267,14 +270,15 @@ export function Header({ mode }: HeaderProps) {
             </SheetTrigger>
             <SheetContent side="left" className="bg-intercap-blue-dark text-white border-r border-white/10">
               <nav className="flex flex-col gap-4 mt-8">
-                <Link href="/home" className="text-base font-bold">Home</Link>
-                {NAV_LINKS.map((link) => (
-                  <Link key={link.href} href={link.href} className="text-base font-bold">
-                    {link.label}
-                  </Link>
+                <Link href="/home" onClick={() => setMobileMenuOpen(false)} className="text-base font-bold">Home</Link>
+                {NAV_LINKS.map((link) => link.href === "/reclamos" ? (
+                  <button key={link.href} type="button" onClick={() => { setMobileMenuOpen(false); setClaimsOpen(true); }} className="text-left text-base font-bold">{link.label}</button>
+                ) : (
+                  <Link key={link.href} href={link.href} onClick={() => setMobileMenuOpen(false)} className="text-base font-bold">{link.label}</Link>
                 ))}
                 <Link
                   href="/info/ayuda-rapida"
+                  onClick={() => setMobileMenuOpen(false)}
                   className="flex items-center gap-2 text-base font-bold"
                   aria-current={location === "/info/ayuda-rapida" ? "page" : undefined}
                 >
@@ -292,7 +296,9 @@ export function Header({ mode }: HeaderProps) {
         <div className="w-full max-w-[1500px] mx-auto px-6 flex items-center h-full">
         {/* Nav links — left */}
         <div className="flex items-center gap-1 flex-1">
-          {NAV_LINKS.map((link) => (
+          {NAV_LINKS.map((link) => link.href === "/reclamos" ? (
+            <button key={link.href} type="button" onClick={() => setClaimsOpen(true)} className="flex h-10 items-center px-4 text-[11px] font-bold uppercase tracking-wide text-white/80 transition-colors hover:text-intercap-blue-main">{link.label}</button>
+          ) : (
             <Link
               key={link.href}
               href={link.href}
@@ -318,6 +324,8 @@ export function Header({ mode }: HeaderProps) {
         </span>
         </div>
       </nav>}
+
+      {claimsOpen && <ClaimsModal onClose={() => setClaimsOpen(false)} />}
 
     </div>
   );
