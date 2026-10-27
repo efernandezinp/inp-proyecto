@@ -5,6 +5,13 @@ import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import Home from "@/pages/home";
 import AdminHome from "@/pages/admin-home";
+import AdminSpecialSales from "@/pages/admin-special-sales";
+import AdminParametersGeneral from "@/pages/admin-parameters-general";
+import AdminParametersBanners from "@/pages/admin-parameters-banners";
+import AdminParametersClientRequest from "@/pages/admin-parameters-client-request";
+import AdminParametersNotifications from "@/pages/admin-parameters-notifications";
+import AdminParametersCarts from "@/pages/admin-parameters-carts";
+import AdminParametersCatalog from "@/pages/admin-parameters-catalog";
 import SellerHome from "@/pages/seller-home";
 import Catalog from "@/pages/catalog";
 import ProductDetail from "@/pages/product-detail";
@@ -22,6 +29,14 @@ function Router() {
     <Switch>
       <Route path="/" component={Landing} />
       <Route path="/home" component={Home} />
+      <Route path="/admin/ventas-especiales" component={AdminSpecialSales} />
+      <Route path="/admin/parametros/general" component={AdminParametersGeneral} />
+      <Route path="/admin/parametros/banners" component={AdminParametersBanners} />
+      <Route path="/admin/parametros/solicitud-cliente" component={AdminParametersClientRequest} />
+      <Route path="/admin/parametros/notificaciones" component={AdminParametersNotifications} />
+      <Route path="/admin/parametros/carritos" component={AdminParametersCarts} />
+      <Route path="/admin/parametros/catalogo" component={AdminParametersCatalog} />
+      <Route path="/admin/parametros" component={AdminParametersGeneral} />
       <Route path="/admin" component={AdminHome} />
       <Route path="/vendedor" component={SellerHome} />
       <Route path="/catalogo" component={Catalog} />

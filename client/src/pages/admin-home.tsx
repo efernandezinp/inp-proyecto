@@ -10,32 +10,8 @@ import {
 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-
-const sidebarGroups = [
-  {
-    title: "COMPRAS",
-    items: [
-      { label: "CATALOGO", icon: BookOpen },
-      { label: "CARRITOS", icon: ShoppingCart },
-    ],
-  },
-  {
-    title: "CUENTA",
-    items: [
-      { label: "CUENTA CORRIENTE", icon: WalletCards },
-      { label: "COBRA CON INPAY", icon: CreditCard },
-    ],
-  },
-  {
-    title: "ADMIN",
-    items: [
-      { label: "PANEL ADMIN", icon: Grid2X2 },
-      { label: "PARAMETROS", icon: Settings },
-      { label: "VENTAS ESPECIALES", icon: SlidersHorizontal },
-      { label: "CORREOS NO ENVIADOS", icon: Mail, disabled: true },
-    ],
-  },
-];
+import { AdminSidebar } from "@/components/admin/AdminSidebar";
+import { Link } from "wouter";
 
 const modules = [
   {
@@ -88,45 +64,12 @@ const modules = [
 
 export default function AdminHome() {
   return (
-    <div className="min-h-screen bg-white pt-14 text-intercap-blue-dark">
+    <div className="min-h-screen bg-white pt-24 text-intercap-blue-dark">
       <Header mode="admin" />
 
       <main className="bg-[#f0f0f0]">
         <div className="flex w-full">
-          <aside className="hidden w-56 shrink-0 bg-intercap-blue-dark text-white lg:block">
-            <div className="border-b border-white/10 px-5 py-6 text-xl font-black italic">
-              PANEL
-            </div>
-            <div className="p-3">
-              <button className="mb-5 flex h-10 w-full items-center gap-3 rounded-md bg-teal-500 px-4 text-left text-xs font-black">
-                <Grid2X2 className="h-4 w-4" />
-                TODOS LOS MODULOS
-              </button>
-
-              {sidebarGroups.map((group) => (
-                <section key={group.title} className="border-t border-white/10 py-4">
-                  <h2 className="mb-3 px-1 text-[11px] font-black tracking-[0.2em] text-blue-300">
-                    {group.title}
-                  </h2>
-                  <div className="space-y-1">
-                    {group.items.map((item) => {
-                      const Icon = item.icon;
-                      return (
-                        <button
-                          key={item.label}
-                          disabled={item.disabled}
-                          className="flex h-9 w-full items-center gap-3 rounded px-2 text-left text-xs font-black text-white/85 disabled:text-white/25"
-                        >
-                          <Icon className="h-4 w-4" />
-                          {item.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
-              ))}
-            </div>
-          </aside>
+          <AdminSidebar />
 
           <section className="min-h-[720px] flex-1 px-5 py-6 md:px-8">
             <div className="bg-white px-6 py-6 shadow-sm">
@@ -169,11 +112,11 @@ export default function AdminHome() {
                     </div>
                     <h3 className="mt-5 text-base font-black">{item.title}</h3>
                     <p className="mt-2 text-sm leading-6 text-slate-500">{item.text}</p>
-                    {!item.disabled && (
-                      <button className="mt-4 text-xs font-black uppercase text-teal-600">
+                    {!item.disabled && ["Ventas especiales", "Catalogo", "Cobra con INPay", "Panel admin", "Parametros"].includes(item.title) && (
+                      <Link href={item.title === "Ventas especiales" ? "/admin/ventas-especiales" : item.title === "Catalogo" ? "/catalogo" : item.title === "Cobra con INPay" ? "/inpay" : item.title === "Parametros" ? "/admin/parametros/general" : "/admin"} className="mt-4 inline-block text-xs font-black uppercase text-teal-600">
                         Abrir
                         <span className="ml-2">›</span>
-                      </button>
+                      </Link>
                     )}
                   </article>
                 );

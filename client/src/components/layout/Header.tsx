@@ -37,14 +37,15 @@ export function Header({ mode }: HeaderProps) {
   const [storedMode, setStoredMode] = useState<"client" | "admin" | "seller">("client");
   const [claimsOpen, setClaimsOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const effectiveMode = mode ?? storedMode;
   const isAdmin = effectiveMode === "admin";
   const isSeller = effectiveMode === "seller";
   const homeHref = isAdmin ? "/admin" : "/home";
   const isManagementUser = isAdmin || isSeller;
   const AvatarMenuIcon = isManagementUser ? Settings : User;
-  const avatarMenuLabel = isManagementUser ? "Panel de Gestion" : "Mis Datos";
-  const managementPanelHref = isAdmin ? "/admin" : "/vendedor";
+  const avatarMenuLabel = isAdmin ? "Panel" : isManagementUser ? "Panel de Gestión" : "Mis Datos";
+  const managementPanelHref = isAdmin ? "/admin/ventas-especiales" : "/vendedor";
 
   useEffect(() => {
     const sessionMode = window.localStorage.getItem("intercap-user-mode");
@@ -114,14 +115,6 @@ export function Header({ mode }: HeaderProps) {
             </div>
           </div>
 
-          {isAdmin && (
-            <button className="hidden h-9 items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 text-[11px] font-black uppercase text-white/80 transition hover:bg-white/15 lg:flex">
-              <Users className="h-3.5 w-3.5" />
-              Seleccionar Clientes
-              <ChevronDown className="h-3 w-3 opacity-70" />
-            </button>
-          )}
-
           {/* Spacer */}
           <div className="flex-1" />
 
@@ -153,6 +146,7 @@ export function Header({ mode }: HeaderProps) {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48 rounded-lg border-slate-200 p-2 shadow-xl">
+              {isAdmin && <DropdownMenuItem onClick={() => setProfileOpen(true)} className="cursor-pointer font-semibold"><User className="h-4 w-4" /> Mi perfil</DropdownMenuItem>}
               <DropdownMenuItem
                 onClick={() => {
                   if (isManagementUser) {
@@ -175,7 +169,7 @@ export function Header({ mode }: HeaderProps) {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <DropdownMenu>
+          {!isAdmin && <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
@@ -214,7 +208,7 @@ export function Header({ mode }: HeaderProps) {
                 </button>
               </div>
             </DropdownMenuContent>
-          </DropdownMenu>
+          </DropdownMenu>}
 
           {/* Ayuda */}
           <Link
@@ -239,6 +233,7 @@ export function Header({ mode }: HeaderProps) {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48 rounded-lg border-slate-200 p-2 shadow-xl">
+              {isAdmin && <DropdownMenuItem onClick={() => setProfileOpen(true)} className="cursor-pointer font-semibold"><User className="h-4 w-4" /> Mi perfil</DropdownMenuItem>}
               <DropdownMenuItem
                 onClick={() => {
                   if (isManagementUser) {
@@ -270,7 +265,8 @@ export function Header({ mode }: HeaderProps) {
             </SheetTrigger>
             <SheetContent side="left" className="bg-intercap-blue-dark text-white border-r border-white/10">
               <nav className="flex flex-col gap-4 mt-8">
-                <Link href="/home" onClick={() => setMobileMenuOpen(false)} className="text-base font-bold">Home</Link>
+                <Link href={homeHref} onClick={() => setMobileMenuOpen(false)} className="text-base font-bold">Home</Link>
+                {isAdmin && <Link href="/admin/ventas-especiales" onClick={() => setMobileMenuOpen(false)} className="text-base font-bold">Ventas especiales</Link>}
                 {NAV_LINKS.map((link) => link.href === "/reclamos" ? (
                   <button key={link.href} type="button" onClick={() => { setMobileMenuOpen(false); setClaimsOpen(true); }} className="text-left text-base font-bold">{link.label}</button>
                 ) : (
@@ -292,7 +288,7 @@ export function Header({ mode }: HeaderProps) {
       </header>
 
       {/* ── ROW 2: Main nav + cotización ── */}
-      {!isAdmin && <nav className="hidden lg:flex bg-[#0d1730] border-b border-white/5 h-10 items-center justify-center">
+      <nav className="hidden lg:flex bg-[#0d1730] border-b border-white/5 h-10 items-center justify-center">
         <div className="w-full max-w-[1500px] mx-auto px-6 flex items-center h-full">
         {/* Nav links — left */}
         <div className="flex items-center gap-1 flex-1">
@@ -312,7 +308,7 @@ export function Header({ mode }: HeaderProps) {
         </div>
 
         {/* Cotización — right */}
-        {isSeller && (
+        {(isSeller || isAdmin) && (
           <button className="mr-3 hidden h-8 items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 text-[11px] font-black uppercase text-white/70 lg:flex">
             <Users className="h-3.5 w-3.5" />
             Seleccionar Clientes
@@ -323,9 +319,10 @@ export function Header({ mode }: HeaderProps) {
           {isAdmin || isSeller ? "COTIZACIÓN USD $ 1.430,00" : "COTIZACIÓN USD $ 1490,00"}
         </span>
         </div>
-      </nav>}
+      </nav>
 
       {claimsOpen && <ClaimsModal onClose={() => setClaimsOpen(false)} />}
+      {profileOpen && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setProfileOpen(false); }}><section role="dialog" aria-modal="true" aria-label="Mi perfil" className="w-full max-w-sm rounded-2xl bg-white p-6 text-[#001f3f] shadow-2xl"><div className="flex items-start justify-between"><h2 className="text-lg font-black">Mi perfil</h2><button type="button" onClick={() => setProfileOpen(false)} aria-label="Cerrar" className="rounded p-1 text-slate-500 hover:bg-slate-100">×</button></div><p className="mt-4 text-sm">Usuario: <strong>ADMIN</strong></p><p className="mt-1 text-sm text-slate-500">Rol: Administrador</p></section></div>}
 
     </div>
   );
