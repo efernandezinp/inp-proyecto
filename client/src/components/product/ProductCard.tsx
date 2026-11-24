@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { Product, isStockAvailable } from "@/lib/products";
 import { Heart, ArrowRightLeft, Link as LinkIcon, Info, Bike, ShoppingCart, Trash2, ChevronUp, ChevronDown, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -109,15 +110,15 @@ export function ProductCard({ product, viewMode = 'grid', showOfferDetails = fal
           </div>
         )}
         
-        <div className={styles.listImageWrapper}>
+        <Link href={`/producto/${code}`} className={styles.listImageWrapper} aria-label={`Ver ficha de ${title}`}>
           <img src={image} alt={title} className="max-w-full max-h-full object-contain mix-blend-multiply" />
-        </div>
+        </Link>
         
         <div className={styles.listContent}>
           <div className={styles.listHeader}>
             <div className={styles.listInfo}>
               <div className={styles.listBrand}>{brand}</div>
-              <h3 className={styles.listTitle}>{title}</h3>
+              <h3 className={styles.listTitle}><Link href={`/producto/${code}`}>{title}</Link></h3>
               <div className={styles.codeInfo}>Cod: {code}</div>
               
               <div className={styles.presentacion}>
@@ -190,7 +191,7 @@ export function ProductCard({ product, viewMode = 'grid', showOfferDetails = fal
         </div>
       )}
 
-      <div className={styles.imageWrapper}>
+      <Link href={`/producto/${code}`} className={styles.imageWrapper} aria-label={`Ver ficha de ${title}`}>
         <div className={styles.imageContainer}>
           <img src={image} alt={title} className={styles.productImage} />
         </div>
@@ -201,11 +202,11 @@ export function ProductCard({ product, viewMode = 'grid', showOfferDetails = fal
           <span className={styles.dot}></span>
           <span className={styles.dot}></span>
         </div>
-      </div>
+      </Link>
 
       <div className={styles.content}>
         <div className={styles.brand}>{brand}</div>
-        <h3 className={styles.title} title={title}>{title}</h3>
+        <h3 className={styles.title} title={title}><Link href={`/producto/${code}`}>{title}</Link></h3>
         <div className={styles.code}>Cod: {code}</div>
         <div className={styles.presentacion}>1° Envase Caja 1 UNI</div>
         {weightLabel && <div className={styles.weightLine}>Peso {weightEstimated ? 'aprox.' : 'unitario'}: {weightLabel}</div>}

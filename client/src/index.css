@@ -293,3 +293,22 @@ section[aria-label="Productos no entregados"] tbody td:nth-child(3) {
     animation: none;
   }
 }
+
+.filter-options-scroll {
+  scrollbar-color: #4b9cff #173c65;
+  scrollbar-width: thin;
+}
+
+.filter-options-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.filter-options-scroll::-webkit-scrollbar-track {
+  background: #173c65;
+  border-radius: 8px;
+}
+
+.filter-options-scroll::-webkit-scrollbar-thumb {
+  background: #4b9cff;
+  border-radius: 8px;
+}

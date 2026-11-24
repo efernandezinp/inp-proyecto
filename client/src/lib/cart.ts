@@ -1,7 +1,9 @@
 import { useSyncExternalStore } from "react";
+import { updateOrders } from "./orders-store";
 
 export type CartProduct = { code: string; title: string; brand: string; image: string; price: number };
-export type CartItem = CartProduct & { quantity: number };
+export type PendingOrigin = { orderId: string; sku: string; quantity: number; pendingUnitsDeducted?: boolean };
+export type CartItem = CartProduct & { quantity: number; pendingOrigins?: PendingOrigin[] };
 export type CheckoutMode = "b2b" | "dropship";
 export type CheckoutStatus = "draft" | "b2b-confirmed" | "awaiting-payment" | "paid";
 export type Recipient = {
@@ -73,8 +75,23 @@ function validItems(value: unknown): CartItem[] {
   );
 }
 
+function createCartId(): string {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+
+  const bytes = new Uint8Array(16);
+  if (globalThis.crypto?.getRandomValues) {
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 function makeCart(index: number, items: CartItem[] = []): SavedCart {
-  return { id: crypto.randomUUID(), number: index, name: `Carrito #${String(index).padStart(6, "0")}`,
+  return { id: createCartId(), number: index, name: `Carrito #${String(index).padStart(6, "0")}`,
     notes: "", address: DEFAULT_ADDRESS, createdAt: new Date().toISOString(), items, checkout: defaultCheckout() };
 }
 
@@ -158,6 +175,7 @@ export function updateCheckout(id: string, updates: Partial<Omit<CheckoutData, "
 export function deleteCart(id: string) {
   const index = state.carts.findIndex((cart) => cart.id === id);
   if (index < 0) return;
+  restorePending(state.carts[index].items);
   const carts = state.carts.filter((cart) => cart.id !== id);
   publish({ carts, activeId: state.activeId === id ? (carts[Math.max(0, index - 1)]?.id ?? null) : state.activeId });
 }
@@ -182,13 +200,60 @@ export function addToCart(product: CartProduct, quantity = 1) {
       : [...items, { ...product, quantity }];
   });
 }
+export function addPendingToCart(product: CartProduct, origin: PendingOrigin) {
+  if (!Number.isSafeInteger(origin.quantity) || origin.quantity < 1) return;
+  updateActiveItems(items => {
+    const existing = items.find(item => item.code === product.code);
+    return existing
+      ? items.map(item => item.code === product.code
+        ? { ...item, quantity: item.quantity + origin.quantity, pendingOrigins: [...(item.pendingOrigins ?? []), origin] }
+        : item)
+      : [...items, { ...product, quantity: origin.quantity, pendingOrigins: [origin] }];
+  });
+}
+
+function restorePending(items: CartItem[]) {
+  const origins = items.flatMap(item => item.pendingOrigins ?? []);
+  if (!origins.length) return;
+  updateOrders(orders => orders.map(order => ({
+    ...order,
+    items: order.items.map(item => {
+      const matching = origins.filter(origin => origin.orderId === order.id && origin.sku === item.sku);
+      return matching.length ? {
+        ...item,
+        requestedQty: item.requestedQty + matching.filter(origin => origin.pendingUnitsDeducted).reduce((sum, origin) => sum + origin.quantity, 0),
+        pendingAction: matching.some(origin => !origin.pendingUnitsDeducted) ? undefined : item.pendingAction,
+      } : item;
+    }),
+  })));
+}
+
 export function setCartQuantity(code: string, quantity: number) {
   if (!Number.isSafeInteger(quantity)) return;
-  updateActiveItems((items) => quantity <= 0
-    ? items.filter((item) => item.code !== code)
-    : items.map((item) => item.code === code ? { ...item, quantity } : item));
+  const current = state.carts.find(cart => cart.id === state.activeId)?.items.find(item => item.code === code);
+  if (!current) return;
+  const next = Math.max(0, quantity);
+  if (next === current.quantity) return;
+
+  const origins = current.pendingOrigins?.map(origin => ({ ...origin })) ?? [];
+  const reserved = origins.reduce((sum, origin) => sum + origin.quantity, 0);
+  let unitsToDiscard = Math.max(0, reserved - next);
+  for (let index = origins.length - 1; index >= 0 && unitsToDiscard > 0; index--) {
+    const count = Math.min(origins[index].quantity, unitsToDiscard);
+    origins[index].quantity -= count;
+    unitsToDiscard -= count;
+  }
+
+  updateActiveItems(items => items.flatMap(item => item.code !== code ? [item] : next > 0
+    ? [{ ...item, quantity: next, pendingOrigins: origins.filter(origin => origin.quantity > 0) }]
+    : []));
 }
 export function removeFromCart(code: string) {
+  const item = state.carts.find(cart => cart.id === state.activeId)?.items.find(item => item.code === code);
+  if (item) restorePending([item]);
   updateActiveItems((items) => items.filter((item) => item.code !== code));
 }
-export function clearCart() { if (state.activeId) updateActiveItems(() => []); }
+export function clearCart() {
+  const cart = state.carts.find(cart => cart.id === state.activeId);
+  if (cart) { restorePending(cart.items); updateActiveItems(() => []); }
+}

@@ -156,6 +156,10 @@ export function FilterSidebar({ selectedFilters, onFilterChange }: FilterSidebar
     return (selectedFilters[`attr_${attrKey}`] || []).includes(value);
   };
 
+  const optionListStyle = (count: number) => count > 9
+    ? { height: 180, overflowY: "scroll" as const, overscrollBehaviorY: "contain" as const }
+    : undefined;
+
   return (
     <div className="flex flex-col gap-0 select-none bg-intercap-blue-dark min-h-full">
       <div className="flex justify-between items-center bg-intercap-blue-dark p-4 border-b border-white/5">
@@ -217,16 +221,16 @@ export function FilterSidebar({ selectedFilters, onFilterChange }: FilterSidebar
                     className="pl-9 h-8 bg-black/20 border-white/10 text-white text-[10px] font-black placeholder:text-gray-600 rounded-[4px]"
                   />
                 </div>
-                <div className="space-y-3 max-h-[200px] overflow-y-auto custom-scrollbar pr-2">
+                <div className="filter-options-scroll pr-2" style={optionListStyle(filteredMarcas.length)}>
                   {filteredMarcas.map((marca) => (
-                    <div key={marca.id} className="flex items-center space-x-3 group">
+                    <div key={marca.id} className="group flex h-5 items-center space-x-3">
                       <Checkbox 
                         id={`marca-${marca.id}`} 
                         checked={isChecked('marca', marca.id)}
                         onCheckedChange={(checked) => handleCheckboxChange('marca', marca.id, checked as boolean)}
-                        className="w-5 h-5 border-white/10 data-[state=checked]:bg-intercap-blue-main rounded-full"
+                        className="h-5 w-5 shrink-0 border-white/10 data-[state=checked]:bg-intercap-blue-main rounded-full"
                       />
-                      <Label htmlFor={`marca-${marca.id}`} className="text-[10px] font-black text-gray-500 group-hover:text-white cursor-pointer uppercase tracking-tighter">
+                      <Label htmlFor={`marca-${marca.id}`} title={marca.nombre} className="min-w-0 flex-1 truncate text-[10px] font-black text-gray-500 group-hover:text-white cursor-pointer uppercase tracking-tighter">
                         {marca.nombre}
                       </Label>
                     </div>
@@ -239,7 +243,7 @@ export function FilterSidebar({ selectedFilters, onFilterChange }: FilterSidebar
           <AccordionItem value="tipos" className="border-none">
             <AccordionTrigger className="bg-intercap-blue-dark hover:no-underline px-4 py-4 text-[10px] font-black text-intercap-blue-main uppercase border-b border-white/5 [&[data-state=open]>svg]:rotate-180 tracking-tighter">
               <div className="flex items-center gap-2">
-                TIPOS DE PRODUCTO
+                CATEGORÍAS
                 {selectedCategories.length > 0 && <span className="bg-intercap-blue-main text-white rounded-full w-4 h-4 flex items-center justify-center text-[8px] font-black">{selectedCategories.length}</span>}
               </div>
             </AccordionTrigger>
@@ -248,22 +252,22 @@ export function FilterSidebar({ selectedFilters, onFilterChange }: FilterSidebar
                 <div className="relative mb-3">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500" />
                   <Input
-                    placeholder="Buscar Tipo"
+                    placeholder="Buscar Categoría"
                     value={categorySearch}
                     onChange={(e) => setCategorySearch(e.target.value)}
                     className="pl-9 h-8 bg-black/20 border-white/10 text-white text-[10px] font-black placeholder:text-gray-600 rounded-[4px]"
                   />
                 </div>
-                <div className="space-y-3 max-h-[200px] overflow-y-auto custom-scrollbar pr-2">
+                <div className="filter-options-scroll pr-2" style={optionListStyle(filteredCategories.length)}>
                   {filteredCategories.map((cat) => (
-                    <div key={cat.id} className="flex items-center space-x-3 group">
+                    <div key={cat.id} className="group flex h-5 items-center space-x-3">
                       <Checkbox 
                         id={`cat-${cat.id}`} 
                         checked={isChecked('categoria', cat.id)}
                         onCheckedChange={(checked) => handleCheckboxChange('categoria', cat.id, checked as boolean)}
-                        className="w-5 h-5 border-white/10 data-[state=checked]:bg-intercap-blue-main rounded-full"
+                        className="h-5 w-5 shrink-0 border-white/10 data-[state=checked]:bg-intercap-blue-main rounded-full"
                       />
-                      <Label htmlFor={`cat-${cat.id}`} className="text-[10px] font-black text-gray-500 group-hover:text-white cursor-pointer uppercase tracking-tighter">
+                      <Label htmlFor={`cat-${cat.id}`} title={cat.nombre} className="min-w-0 flex-1 truncate text-[10px] font-black text-gray-500 group-hover:text-white cursor-pointer uppercase tracking-tighter">
                         {cat.nombre}
                       </Label>
                     </div>
@@ -276,7 +280,7 @@ export function FilterSidebar({ selectedFilters, onFilterChange }: FilterSidebar
           <AccordionItem value="subtipos" className="border-none">
             <AccordionTrigger className="bg-intercap-blue-dark hover:no-underline px-4 py-4 text-[10px] font-black text-intercap-blue-main uppercase border-b border-white/5 [&[data-state=open]>svg]:rotate-180 tracking-tighter">
               <div className="flex items-center gap-2">
-                SUBTIPOS
+                SUBCATEGORÍAS / TIPOS
                 {selectedSubtipos.length > 0 && <span className="bg-intercap-blue-main text-white rounded-full w-4 h-4 flex items-center justify-center text-[8px] font-black">{selectedSubtipos.length}</span>}
               </div>
             </AccordionTrigger>
@@ -285,22 +289,22 @@ export function FilterSidebar({ selectedFilters, onFilterChange }: FilterSidebar
                 <div className="relative mb-3">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500" />
                   <Input
-                    placeholder="Buscar Subtipo"
+                    placeholder="Buscar Subcategoría / Tipo"
                     value={subtipoSearch}
                     onChange={(e) => setSubtipoSearch(e.target.value)}
                     className="pl-9 h-8 bg-black/20 border-white/10 text-white text-[10px] font-black placeholder:text-gray-600 rounded-[4px]"
                   />
                 </div>
-                <div className="space-y-3 max-h-[200px] overflow-y-auto custom-scrollbar pr-2">
+                <div className="filter-options-scroll pr-2" style={optionListStyle(filteredSubtipos.length)}>
                   {filteredSubtipos.map((st) => (
-                    <div key={st.id} className="flex items-center space-x-3 group">
+                    <div key={st.id} className="group flex h-5 items-center space-x-3">
                       <Checkbox 
                         id={`subtipo-${st.id}`} 
                         checked={isChecked('subtipo', st.id)}
                         onCheckedChange={(checked) => handleCheckboxChange('subtipo', st.id, checked as boolean)}
-                        className="w-5 h-5 border-white/10 data-[state=checked]:bg-intercap-blue-main rounded-full"
+                        className="h-5 w-5 shrink-0 border-white/10 data-[state=checked]:bg-intercap-blue-main rounded-full"
                       />
-                      <Label htmlFor={`subtipo-${st.id}`} className="text-[10px] font-black text-gray-500 group-hover:text-white cursor-pointer uppercase tracking-tighter">
+                      <Label htmlFor={`subtipo-${st.id}`} title={st.nombre} className="min-w-0 flex-1 truncate text-[10px] font-black text-gray-500 group-hover:text-white cursor-pointer uppercase tracking-tighter">
                         {st.nombre}
                       </Label>
                     </div>
@@ -327,20 +331,22 @@ export function FilterSidebar({ selectedFilters, onFilterChange }: FilterSidebar
                             {selectedFilters[`attr_${key}`]?.length > 0 && <span className="bg-intercap-blue-main text-white rounded-full w-4 h-4 flex items-center justify-center text-[8px] font-black">{selectedFilters[`attr_${key}`].length}</span>}
                           </div>
                         </AccordionTrigger>
-                        <AccordionContent className="px-8 pb-4 space-y-3 max-h-[200px] overflow-y-auto custom-scrollbar">
-                          {attr.values.map((val: any) => (
-                            <div key={String(val)} className="flex items-center space-x-3 group">
-                              <Checkbox 
-                                id={`attr-${key}-${val}`} 
-                                checked={isAttributeSelected(key, String(val))}
-                                onCheckedChange={() => handleAttributeChange(key, String(val))}
-                                className="w-4 h-4 border-white/10 data-[state=checked]:bg-intercap-blue-main rounded-full"
-                              />
-                              <Label htmlFor={`attr-${key}-${val}`} className="text-[10px] font-black text-gray-600 group-hover:text-white cursor-pointer uppercase tracking-tighter">
-                                {val}
-                              </Label>
-                            </div>
-                          ))}
+                        <AccordionContent className="px-8 pb-4">
+                          <div className="filter-options-scroll" style={optionListStyle(attr.values.length)}>
+                            {attr.values.map((val: any) => (
+                              <div key={String(val)} className="group flex h-5 items-center space-x-3">
+                                <Checkbox
+                                  id={`attr-${key}-${val}`}
+                                  checked={isAttributeSelected(key, String(val))}
+                                  onCheckedChange={() => handleAttributeChange(key, String(val))}
+                                  className="h-4 w-4 shrink-0 border-white/10 data-[state=checked]:bg-intercap-blue-main rounded-full"
+                                />
+                                <Label htmlFor={`attr-${key}-${val}`} title={String(val)} className="min-w-0 flex-1 truncate text-[10px] font-black text-gray-600 group-hover:text-white cursor-pointer uppercase tracking-tighter">
+                                  {val}
+                                </Label>
+                              </div>
+                            ))}
+                          </div>
                         </AccordionContent>
                       </AccordionItem>
                     </Accordion>

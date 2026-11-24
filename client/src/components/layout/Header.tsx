@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { useEffect, useState } from "react";
-import { Search, ShoppingCart, Home, LayoutGrid, ChevronDown, LogOut, HelpCircle, User, Users, Settings, Bell } from "lucide-react";
+import { Search, ShoppingCart, Home, ChevronDown, LogOut, HelpCircle, User, Users, Settings, Bell } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,10 @@ export function Header({ mode }: HeaderProps) {
   const { carts, activeId } = useCarts();
   const activeCart = carts.find((cart) => cart.id === activeId);
   const cartCount = activeCart?.items.reduce((total, item) => total + item.quantity, 0) ?? 0;
+  const cartTotal = activeCart?.items.reduce((total, item) => total + item.price * item.quantity, 0) ?? 0;
+  const formattedCartTotal = new Intl.NumberFormat("es-AR", {
+    style: "currency", currency: "ARS", minimumFractionDigits: 2, maximumFractionDigits: 2,
+  }).format(cartTotal);
   const [location, navigate] = useLocation();
   const [storedMode, setStoredMode] = useState<"client" | "admin" | "seller">("client");
   const [claimsOpen, setClaimsOpen] = useState(false);
@@ -79,30 +83,6 @@ export function Header({ mode }: HeaderProps) {
             <img src={intercapLogo} alt="Intercap" className="h-7 w-auto" />
           </Link>
 
-          {/* Pill nav buttons */}
-          <nav className="hidden lg:flex items-center gap-2">
-            <Link
-              href={homeHref}
-              className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full border transition-all
-                ${location === homeHref
-                  ? "bg-white text-intercap-blue-dark border-white"
-                  : "bg-white/10 text-white border-white/20 hover:bg-white/20"}`}
-            >
-              <Home className="w-3 h-3" />
-              Home
-            </Link>
-            <Link
-              href="/catalogo"
-              className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full border transition-all
-                ${location === "/catalogo"
-                  ? "bg-white text-intercap-blue-dark border-white"
-                  : "bg-transparent text-white border-white/30 hover:bg-white/10"}`}
-            >
-              <LayoutGrid className="w-3 h-3" />
-              Catálogo
-            </Link>
-          </nav>
-
           {/* Search bar */}
           <div className="flex-1 max-w-xl hidden md:block">
             <div className="relative">
@@ -118,8 +98,8 @@ export function Header({ mode }: HeaderProps) {
           {/* Spacer */}
           <div className="flex-1" />
 
-          {/* Cart + client badge */}
-          {!isAdmin && <Link href="/carrito" aria-label={`Ver carrito, ${cartCount} unidades`} className="hidden md:flex items-center gap-2 bg-white/8 hover:bg-white/15 border border-white/15 rounded-lg px-3 h-9 text-white transition-colors relative">
+          {/* Cart total */}
+          {!isAdmin && <Link href="/carrito" aria-label={`Ver ${activeCart?.name || "Mi carrito"}, ${cartCount} unidades, total ${formattedCartTotal}`} className="hidden md:flex items-center gap-2 bg-white/8 hover:bg-white/15 border border-white/15 rounded-lg px-3 h-9 text-white transition-colors relative">
             <div className="relative">
               <ShoppingCart className="w-4 h-4" />
               {cartCount > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-black rounded-full min-w-4 h-4 px-0.5 flex items-center justify-center leading-none">{cartCount > 99 ? "99+" : cartCount}</span>}
@@ -127,6 +107,7 @@ export function Header({ mode }: HeaderProps) {
             <span className="max-w-28 truncate bg-intercap-blue-main text-white text-[9px] font-black rounded-md px-2 h-[18px] flex items-center justify-center tracking-tight ml-0.5" title={activeCart?.name || "Mi carrito"}>
               {activeCart?.name || "Mi carrito"}
             </span>
+            <span className="whitespace-nowrap text-[12px] font-semibold tabular-nums">{formattedCartTotal}</span>
           </Link>}
 
           {/* Brand name */}
@@ -292,6 +273,16 @@ export function Header({ mode }: HeaderProps) {
         <div className="w-full max-w-[1500px] mx-auto px-6 flex items-center h-full">
         {/* Nav links — left */}
         <div className="flex items-center gap-1 flex-1">
+          <Link
+            href={homeHref}
+            aria-label="Home"
+            title="Home"
+            aria-current={location === homeHref ? "page" : undefined}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center transition-colors hover:text-intercap-blue-main
+              ${location === homeHref ? "text-intercap-blue-main" : "text-white/80"}`}
+          >
+            <Home className="h-4 w-4" aria-hidden="true" />
+          </Link>
           {NAV_LINKS.map((link) => link.href === "/reclamos" ? (
             <button key={link.href} type="button" onClick={() => setClaimsOpen(true)} className="flex h-10 items-center px-4 text-[11px] font-bold uppercase tracking-wide text-white/80 transition-colors hover:text-intercap-blue-main">{link.label}</button>
           ) : (

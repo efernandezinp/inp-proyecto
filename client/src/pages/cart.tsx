@@ -3,10 +3,12 @@ import { Link } from "wouter";
 import { CalendarDays, Check, ClipboardList, CreditCard, FileSpreadsheet, FileText, Link2, MapPin, Minus, Package, Plus, ShoppingCart, Tag, Trash2, Truck, X } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { addToCart, clearCart, createCart, deleteCart, removeFromCart, selectCart, setCartQuantity, updateCart, updateCheckout, useCarts, WHOLESALE_ADDRESSES } from "@/lib/cart";
+import { addPendingToCart, addToCart, clearCart, createCart, deleteCart, removeFromCart, selectCart, setCartQuantity, updateCart, updateCheckout, useCarts, WHOLESALE_ADDRESSES } from "@/lib/cart";
 import { calculateCheckout, checkoutErrors, shippingEstimate } from "@/lib/checkout";
 import { CheckoutModeSelector, DropshipCheckoutForm } from "@/components/cart/CheckoutOptions";
 import { PRODUCTS } from "@/lib/products";
+import { updateOrders, useOrders } from "@/lib/orders-store";
+import type { OrderItem } from "@/lib/orders-data";
 
 const money = (value: number) => new Intl.NumberFormat("es-AR", {
   style: "currency", currency: "ARS", minimumFractionDigits: 2, maximumFractionDigits: 2,
@@ -50,6 +52,12 @@ function parseExcelCsv(contents: string): Array<{ code: string; quantity: number
 
 export default function Cart() {
   const { carts, activeId } = useCarts();
+  const orders = useOrders();
+  const pendingWithStock = orders.flatMap(order => order.timelineStep >= 4
+    ? order.items.filter(item => item.requestedQty > item.allocatedQty && !item.pendingAction &&
+      Object.values(item.stockRegional ?? {}).some(level => level === "low" || level === "medium" || level === "high")
+    ).map(item => ({ order, item }))
+    : []);
   const active = carts.find((cart) => cart.id === activeId);
   const items = active?.items ?? [];
   const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -69,6 +77,23 @@ export default function Cart() {
   const importInputRef = useRef<HTMLInputElement>(null);
   const [importMessage, setImportMessage] = useState("");
   const checkoutIssues = checkoutAttempted && active ? checkoutErrors(active) : [];
+
+  const addPendingItem = (orderId: string, item: OrderItem) => {
+    if (!active) return;
+    const available = item.requestedQty - item.allocatedQty;
+    if (!Number.isSafeInteger(available) || available < 1) return;
+    const catalogProduct = productByCode.get(item.sku);
+    addPendingToCart({
+      code: item.sku,
+      title: item.name,
+      brand: catalogProduct?.brand ?? "INTERCAP",
+      image: catalogProduct?.image ?? "/images/product-placeholder.svg",
+      price: item.unitPriceARS,
+    }, { orderId, sku: item.sku, quantity: available, pendingUnitsDeducted: true });
+    updateOrders(current => current.map(order => order.id === orderId
+      ? { ...order, items: order.items.map(pending => pending.sku === item.sku ? { ...pending, requestedQty: pending.allocatedQty } : pending) }
+      : order));
+  };
 
   const importCsv = async (file?: File) => {
     if (!file) return;
@@ -93,7 +118,7 @@ export default function Cart() {
     setPaymentPreviewOpen(false);
   };
 
-  const startCheckout = () => {
+  const completeCheckout = () => {
     if (!active) return;
     const issues = checkoutErrors(active);
     setCheckoutAttempted(true);
@@ -202,18 +227,23 @@ export default function Cart() {
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {items.map((item) => (
-                          <tr key={item.code} className="align-middle">
-                            <td className="px-5 py-8 sm:px-6">
-                              <div className="flex items-center gap-4">
+                          <tr key={item.code} className={`h-[100px] align-middle ${item.pendingOrigins?.length && active.checkout.status !== "b2b-confirmed" ? "bg-amber-50 [&>td]:border-y-2 [&>td]:border-amber-300 [&>td:first-child]:border-l-2 [&>td:last-child]:border-r-2" : ""}`}>
+                            <td className="px-5 py-1 sm:px-6">
+                              <div className="flex w-full min-w-0 items-center gap-4">
                                 <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-slate-100 bg-white p-1.5 shadow-sm"><img src={item.image} alt="" className="max-h-full max-w-full object-contain" /></div>
-                                <div className="min-w-0"><p className="text-[11px] font-bold uppercase text-slate-400">{item.code.slice(3, 6)}</p><p className="mt-1 text-xs font-black leading-4 text-[#001f3f]">{item.title}</p><p className="mt-1 text-[10px] text-slate-400">{item.code}</p></div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[11px] font-bold uppercase text-slate-400">{item.code.slice(3, 6)}</p>
+                                  <p title={item.title} className="mt-0.5 line-clamp-2 whitespace-normal break-words text-xs font-black leading-4 text-[#001f3f] [overflow-wrap:anywhere]">{item.title}</p>
+                                  <p className="mt-0.5 text-[10px] text-slate-400">{item.code}</p>
+                                  {!!item.pendingOrigins?.length && active.checkout.status !== "b2b-confirmed" && <span className="mt-0.5 inline-flex rounded-md border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase text-amber-900">Pendiente de procesar incluido</span>}
+                                </div>
                               </div>
                             </td>
-                            <td className="border-l border-slate-100 px-1 py-8 text-center">
+                            <td className="border-l border-slate-100 px-1 py-2 text-center">
                               <span className="mb-1 block text-[9px] font-bold uppercase text-slate-400">Peso T.</span>
                               <span className="whitespace-nowrap text-xs font-black text-[#001f3f]" title={productByCode.get(item.code)?.weightEstimated ? "Peso estimado" : "Peso del producto"}>{weightByCode.get(item.code) == null ? "—" : formatWeight(weightByCode.get(item.code)! * item.quantity)}</span>
                             </td>
-                            <td className="border-l border-slate-100 px-1 py-8 text-center">
+                            <td className="border-l border-slate-100 px-1 py-2 text-center">
                               <span className="mb-1 block text-[9px] font-bold uppercase text-slate-400">Cant.</span>
                               <div className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-[#f7f8fa]">
                                 <button type="button" onClick={() => setCartQuantity(item.code, item.quantity - 1)} aria-label={`Restar ${item.title}`} className="flex h-full w-6 items-center justify-center rounded-md bg-white shadow-sm hover:bg-slate-100"><Minus className="h-3 w-3" /></button>
@@ -221,24 +251,24 @@ export default function Cart() {
                                 <button type="button" onClick={() => setCartQuantity(item.code, item.quantity + 1)} aria-label={`Sumar ${item.title}`} className="flex h-full w-6 items-center justify-center rounded-md bg-white shadow-sm hover:bg-slate-100"><Plus className="h-3 w-3" /></button>
                               </div>
                             </td>
-                            <td className="border-l border-slate-100 px-2 py-8 text-center"><span className="mb-1 block text-[9px] font-bold uppercase text-slate-400">Unit. c/IVA</span><span className="whitespace-nowrap text-xs font-black">{money(item.price)}</span></td>
-                            <td className="border-l border-slate-100 px-2 py-8 text-center"><span className="mb-1 block text-[10px] font-black uppercase text-slate-400">Total c/IVA</span><span className="whitespace-nowrap text-base font-black">{money(item.price * item.quantity)}</span></td>
-                            <td className="px-1 py-8 text-center"><button type="button" onClick={() => removeFromCart(item.code)} aria-label={`Quitar ${item.title}`} className="rounded p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-4 w-4" /></button></td>
+                            <td className="border-l border-slate-100 px-2 py-2 text-center"><span className="mb-1 block text-[9px] font-bold uppercase text-slate-400">Unit. c/IVA</span><span className="whitespace-nowrap text-xs font-black">{money(item.price)}</span></td>
+                            <td className="border-l border-slate-100 px-2 py-2 text-center"><span className="mb-1 block text-[10px] font-black uppercase text-slate-400">Total c/IVA</span><span className="whitespace-nowrap text-base font-black">{money(item.price * item.quantity)}</span></td>
+                            <td className="px-1 py-2 text-center"><button type="button" onClick={() => removeFromCart(item.code)} aria-label={`Quitar ${item.title}`} className="rounded p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-4 w-4" /></button></td>
                           </tr>
                         ))}
                         {shippingCost > 0 && (
-                          <tr className="bg-emerald-50/50 align-middle">
-                            <td className="px-5 py-5 sm:px-6">
+                          <tr className="h-[100px] bg-emerald-50/50 align-middle">
+                            <td className="px-5 py-2 sm:px-6">
                               <div className="flex items-center gap-4">
                                 <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-white text-emerald-600 shadow-sm"><Truck className="h-7 w-7" /></div>
                                 <div className="min-w-0"><p className="text-[10px] font-bold uppercase text-emerald-700">Servicio de envío</p><p className="mt-1 text-xs font-black leading-4 text-[#001f3f]">Envío dropshipping</p><p className="mt-1 text-[10px] text-slate-500">{[active.checkout.recipient.city, active.checkout.recipient.province, active.checkout.recipient.postalCode && `CP ${active.checkout.recipient.postalCode}`].filter(Boolean).join(", ") || "Destino por definir"} · costo estimado</p></div>
                               </div>
                             </td>
-                            <td className="border-l border-slate-100 px-2 py-5 text-center text-xs text-slate-400">—</td>
-                            <td className="border-l border-slate-100 px-2 py-5 text-center text-xs font-black">1</td>
-                            <td className="border-l border-slate-100 px-2 py-5 text-center text-xs font-semibold">{money(shippingCost)}</td>
-                            <td className="border-l border-slate-100 px-2 py-5 text-center text-sm font-black">{money(shippingCost)}</td>
-                            <td className="px-2 py-5" />
+                            <td className="border-l border-slate-100 px-2 py-2 text-center text-xs text-slate-400">—</td>
+                            <td className="border-l border-slate-100 px-2 py-2 text-center text-xs font-black">1</td>
+                            <td className="border-l border-slate-100 px-2 py-2 text-center text-xs font-semibold">{money(shippingCost)}</td>
+                            <td className="border-l border-slate-100 px-2 py-2 text-center text-sm font-black">{money(shippingCost)}</td>
+                            <td className="px-2 py-2" />
                           </tr>
                         )}
                       </tbody>
@@ -246,6 +276,36 @@ export default function Cart() {
                   </div>
                 )}
               </section>
+              {active.checkout.mode === "b2b" && active.checkout.status !== "b2b-confirmed" && pendingWithStock.length > 0 && (
+                <section aria-label="Pendientes de procesar con stock" className="overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
+                  <div className="border-b border-amber-100 bg-amber-50 px-5 py-4 sm:px-6">
+                    <h2 className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-[#001f3f]"><Package className="h-4 w-4 text-amber-600" /> Pendientes de procesar con stock ({pendingWithStock.length})</h2>
+                    <p className="mt-1 text-xs text-slate-600">No se enviarán hasta que los confirmes.</p>
+                  </div>
+                  <div className="divide-y divide-slate-100">
+                    {pendingWithStock.map(({ order, item }) => {
+                      const key = `${order.id}_${item.sku}`;
+                      const available = item.requestedQty - item.allocatedQty;
+                      return <div key={key} className="grid gap-3 px-5 py-4 text-xs sm:px-6 md:grid-cols-[minmax(0,1fr)_auto_auto_auto] md:items-center md:gap-4">
+                        <div className="min-w-0">
+                          <p className="font-black text-[#001f3f]">{item.name}</p>
+                          <p className="mt-1 text-[11px] text-slate-500">{item.sku} · Pedido {order.id}</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5" aria-label="Regiones con stock">
+                          {Object.entries(item.stockRegional ?? {}).filter(([, level]) => level === "low" || level === "medium" || level === "high").map(([region, level]) => (
+                            <span key={region} title={`Stock ${level === "high" ? "alto" : level === "medium" ? "medio" : "bajo"}`} className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${level === "high" ? "bg-emerald-100 text-emerald-800" : level === "medium" ? "bg-amber-100 text-amber-800" : "bg-orange-100 text-orange-800"}`}>{region}</span>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2 md:justify-end">
+                          <span aria-label={`Cantidad a agregar de ${item.name}: ${available}`} className="inline-flex w-16 items-center justify-center rounded-lg border border-slate-300 px-2 py-1.5 text-xs font-black text-[#001f3f]">{available}</span>
+                          <span className="whitespace-nowrap text-slate-500">de {available} u. · {money(available * item.unitPriceARS)}</span>
+                        </div>
+                        <button type="button" onClick={() => addPendingItem(order.id, item)} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#006ad8] px-3 py-2 text-[10px] font-black uppercase text-white transition hover:bg-[#0053ac]"><ShoppingCart className="h-3.5 w-3.5" /> Agregar al carrito</button>
+                      </div>;
+                    })}
+                  </div>
+                </section>
+              )}
             </div>
 
             {active.checkout.mode === "b2b" ? <aside className="rounded-[24px] bg-[#001f3f] p-6 text-white shadow-[0_20px_40px_rgba(0,31,63,0.14)] lg:sticky lg:top-28">
@@ -260,7 +320,7 @@ export default function Cart() {
               <div className="mt-8 flex items-center justify-between border-t border-white/10 pt-6"><span className="text-[10px] font-black uppercase tracking-wide text-slate-300">Total final</span><div className="text-right"><strong className="block text-xl font-black">{money(total)}</strong><span className="text-[9px] italic text-slate-400">IVA incluido (estimación)</span></div></div>
               {checkoutIssues.length > 0 && <div role="alert" className="mt-5 rounded-xl border border-red-400/40 bg-red-500/10 p-3 text-[11px] text-red-100"><p className="mb-2 font-black uppercase">Completá estos datos</p><ul className="list-inside list-disc space-y-1">{checkoutIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul></div>}
               <div className="mt-8 space-y-3">
-                <button type="button" onClick={startCheckout} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#10a351] px-4 py-4 text-xs font-black uppercase text-white transition hover:bg-emerald-600"><Check className="h-4 w-4" /> {active.checkout.status === "b2b-confirmed" ? "Pedido simulado" : "Confirmar pedido"}</button>
+                <button type="button" onClick={completeCheckout} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#10a351] px-4 py-4 text-xs font-black uppercase text-white transition hover:bg-emerald-600"><Check className="h-4 w-4" /> {active.checkout.status === "b2b-confirmed" ? "Pedido simulado" : "Confirmar pedido"}</button>
                 {confirmDelete ? <div className="rounded-xl border border-red-400/40 p-3 text-center text-xs"><p>¿Eliminar este carrito y sus artículos?</p><div className="mt-3 flex justify-center gap-4"><button type="button" onClick={() => { deleteCart(active.id); setConfirmDelete(false); }} className="font-black text-red-300 hover:text-white">Eliminar</button><button type="button" onClick={() => setConfirmDelete(false)} className="font-black">Cancelar</button></div></div>
                   : <button type="button" onClick={() => setConfirmDelete(true)} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#ff293d] px-4 py-4 text-xs font-black uppercase text-white transition hover:bg-red-600"><Trash2 className="h-4 w-4" /> Eliminar pedido</button>}
               </div>
@@ -288,7 +348,7 @@ export default function Cart() {
               {checkoutIssues.length > 0 && <div role="alert" className="mt-5 rounded-xl border border-red-400/40 bg-red-500/10 p-3 text-[11px] text-red-100"><p className="mb-2 font-black uppercase">Completá estos datos</p><ul className="list-inside list-disc space-y-1">{checkoutIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul></div>}
 
               <div className="mt-8 space-y-3">
-                <button type="button" onClick={startCheckout} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#10a351] px-4 py-4 text-xs font-black uppercase text-white transition hover:bg-emerald-600"><Check className="h-4 w-4" /> Preparar checkout dropshipping</button>
+                <button type="button" onClick={completeCheckout} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#10a351] px-4 py-4 text-xs font-black uppercase text-white transition hover:bg-emerald-600"><Check className="h-4 w-4" /> Preparar checkout dropshipping</button>
                 {active.checkout.mode === "dropship" && active.checkout.status === "awaiting-payment" && <button type="button" onClick={() => setPaymentPreviewOpen(true)} className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 px-4 py-2.5 text-[10px] font-bold uppercase text-emerald-200 hover:bg-white/10"><Link2 className="h-4 w-4" /> Ver vista previa de pago</button>}
                 <p className="text-center text-[10px] leading-4 text-slate-400">Simulación local. No registra pedidos ni genera cobros reales.</p>
                 {confirmClear ? (
@@ -308,6 +368,7 @@ export default function Cart() {
             </aside>}
           </div>
         )}
+
       </main>
       {paymentPreviewOpen && active && financials && <div role="presentation" className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/70 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setPaymentPreviewOpen(false); }}>
         <div role="dialog" aria-modal="true" aria-labelledby="payment-preview-title" className="w-full max-w-md rounded-3xl bg-white p-6 text-[#001f3f] shadow-2xl">

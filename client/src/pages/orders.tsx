@@ -6,7 +6,10 @@ import {
 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { initialOrders, type Order, type OrderItem, type StockLevel } from "@/lib/orders-data";
+import { type Order, type OrderItem, type StockLevel } from "@/lib/orders-data";
+import { updateOrders, useOrders } from "@/lib/orders-store";
+import { addPendingToCart } from "@/lib/cart";
+import { PRODUCTS } from "@/lib/products";
 
 const steps = ["Pedido recibido", "Pedido en análisis", "En preparación", "Facturado", "Enviado"];
 const stepIcons = [FileText, Search, Package, ClipboardCheck, Truck];
@@ -21,6 +24,7 @@ const formatMoney = (amount: number, currency: Currency) =>
 
 const pendingQuantity = (item: OrderItem) => Math.max(0, item.requestedQty - item.allocatedQty);
 const pendingKey = (orderId: string, sku: string) => `${orderId}_${sku}`;
+const productByCode = new Map(PRODUCTS.map(product => [product.code, product]));
 const dateForInput = (date: string) => {
   const [day, month, year] = date.split(" ")[0].split("/");
   return `${year}-${month}-${day}`;
@@ -64,7 +68,7 @@ function ModalFrame({ title, subtitle, onClose, children, wide = false }: { titl
 }
 
 export default function Orders() {
-  const [orders, setOrders] = useState<Order[]>(() => initialOrders.map(order => ({ ...order, items: order.items.map(item => ({ ...item })) })));
+  const orders = useOrders();
   const [numberFilter, setNumberFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const currency: Currency = "ARS";
@@ -113,7 +117,7 @@ export default function Orders() {
   };
   const updatePendingQuantity = (orderId: string, sku: string, quantity: number) => {
     if (!Number.isInteger(quantity) || quantity < 1) return;
-    setOrders(current => current.map(order => order.id !== orderId ? order : {
+    updateOrders(current => current.map(order => order.id !== orderId ? order : {
       ...order, items: order.items.map(item => item.sku !== sku ? item : { ...item, requestedQty: item.allocatedQty + quantity }),
     }));
     setNotice(`Cantidad no entregada actualizada a ${quantity} unidades.`);
@@ -121,11 +125,23 @@ export default function Orders() {
   const actOnSelected = (action: "cart" | "cancelled") => {
     if (!selectedPending.length) { setNotice("Seleccioná al menos un producto no entregado."); return; }
     const keys = new Set(selectedPending.map(({ order, item }) => pendingKey(order.id, item.sku)));
-    setOrders(current => current.map(order => ({ ...order, items: order.items.map(item => keys.has(pendingKey(order.id, item.sku)) ? { ...item, pendingAction: action } : item) })));
+    if (action === "cart") selectedPending.forEach(({ order, item }) => {
+      const product = productByCode.get(item.sku);
+      addPendingToCart({
+        code: item.sku,
+        title: item.name,
+        brand: product?.brand ?? "INTERCAP",
+        image: product?.image ?? "/images/product-placeholder.svg",
+        price: item.unitPriceARS,
+      }, { orderId: order.id, sku: item.sku, quantity: pendingQuantity(item), pendingUnitsDeducted: true });
+    });
+    updateOrders(current => current.map(order => ({ ...order, items: order.items.map(item => keys.has(pendingKey(order.id, item.sku))
+      ? action === "cart" ? { ...item, requestedQty: item.allocatedQty } : { ...item, pendingAction: "cancelled" }
+      : item) })));
     if (action === "cart") setCartCount(count => count + keys.size);
     setSelected({});
     setNotice(action === "cart"
-      ? `${keys.size} producto${keys.size === 1 ? "" : "s"} agregado${keys.size === 1 ? "" : "s"} al carrito de esta demostración.`
+      ? `${keys.size} producto${keys.size === 1 ? "" : "s"} agregado${keys.size === 1 ? "" : "s"} al carrito activo.`
       : `Solicitud de baja de ${keys.size} producto${keys.size === 1 ? "" : "s"} registrada en esta demostración.`);
     setModal(null);
   };
@@ -139,19 +155,19 @@ export default function Orders() {
           <input aria-label="Fecha" type="date" value={dateFilter} onChange={event => setDateFilter(event.target.value)} className="h-8 w-full rounded-lg border border-slate-300 px-3 text-xs font-medium text-intercap-blue-dark outline-none focus:border-intercap-blue-main sm:w-36" />
           <button type="button" className="flex h-8 items-center gap-1.5 rounded-lg bg-indigo-900 px-4 text-xs font-bold text-white transition hover:bg-indigo-800"><Search className="h-3.5 w-3.5" />Buscar</button>
           <span className="ml-auto text-xs font-medium text-slate-500">Mostrando <strong className="text-intercap-blue-dark">{filtered.length}</strong> registros</span>
-          <button type="button" onClick={() => openPending(null)} className="flex h-8 items-center gap-2 rounded-lg bg-amber-400 px-3 text-xs font-bold text-amber-950 transition hover:bg-amber-500"><Boxes className="h-4 w-4" />Productos no entregados<span className="rounded-full bg-amber-950 px-1.5 py-0.5 text-[10px] text-white">{totalPending} u.</span></button>
+          <button type="button" onClick={() => openPending(null)} className="flex h-8 items-center gap-2 rounded-lg bg-amber-400 px-3 text-xs font-bold text-amber-950 transition hover:bg-amber-500"><Boxes className="h-4 w-4" />Pendientes de procesar<span className="rounded-full bg-amber-950 px-1.5 py-0.5 text-[10px] text-white">{totalPending} u.</span></button>
         </div>
       </section>
 
       {!filtered.length ? <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-500">No hay pedidos que coincidan con los filtros.</div> :
         <div className="space-y-4">{filtered.map(order => <OrderCard key={order.id} order={order} onStep={step => openStep(order, step)} onPending={() => openPending(order.id)} />)}</div>}
 
-      {cartCount > 0 && <p className="mt-4 text-xs text-slate-500">{cartCount} producto{cartCount === 1 ? "" : "s"} enviado{cartCount === 1 ? "" : "s"} al carrito de esta demostración.</p>}
+      {cartCount > 0 && <p className="mt-4 text-xs text-slate-500">{cartCount} producto{cartCount === 1 ? "" : "s"} enviado{cartCount === 1 ? "" : "s"} al carrito activo.</p>}
     </main>
     <Footer />
     {modal?.kind === "detail" && activeOrder && <DetailModal order={activeOrder} step={modal.step ?? activeOrder.timelineStep} currency={currency} depotFilter={depotFilter} onDepotFilter={setDepotFilter} onClose={() => setModal(null)} />}
     {modal?.kind === "invoice" && activeOrder && <InvoiceModal order={activeOrder} currency={currency} onClose={() => setModal(null)} />}
-    {modal?.kind === "pending" && <ModalFrame title={modal.orderId ? `No entregados · ${modal.orderId}` : "Productos no entregados"} subtitle="Seleccioná artículos para agregarlos al carrito o solicitar su baja." wide onClose={() => setModal(null)}>
+    {modal?.kind === "pending" && <ModalFrame title={modal.orderId ? `No entregados · ${modal.orderId}` : "Pendientes de procesar"} subtitle="No se enviaran hasta que los confirmes" wide onClose={() => setModal(null)}>
       <div className="overflow-y-auto p-4 sm:p-5">
         {!modal.orderId && <label className="mb-4 block max-w-sm text-xs font-bold text-slate-600">Buscar en todos los pedidos<input value={pendingSearch} onChange={event => setPendingSearch(event.target.value)} placeholder="Pedido, código o producto..." className="mt-1.5 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-intercap-blue-main" /></label>}
         <div className="overflow-x-auto rounded-xl border border-slate-200 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"><table className="w-full min-w-[1400px] table-fixed text-left text-xs"><colgroup><col className="w-[3%]" /><col className="w-[13%]" /><col className="w-[38%]" /><col className="w-[14%]" /><col className="w-[12%]" /><col className="w-[9%]" /><col className="w-[11%]" /></colgroup><thead className="bg-slate-50 text-slate-600"><tr><th className="px-3 py-3"><input type="checkbox" aria-label="Seleccionar todos los productos visibles" checked={visiblePending.length > 0 && selectedVisibleCount === visiblePending.length} onChange={event => setSelected(current => ({ ...current, ...Object.fromEntries(visiblePending.map(({ order, item }) => [pendingKey(order.id, item.sku), event.target.checked])) }))} /></th><th className="whitespace-nowrap px-3 py-3">Código</th><th className="whitespace-nowrap px-3 py-3">Descripción</th><th className="whitespace-nowrap px-3 py-3">Stock regional</th><th className="whitespace-nowrap px-3 py-3">Sustituto</th><th className="whitespace-nowrap px-3 py-3 text-center">No entregado</th><th className="whitespace-nowrap px-3 py-3 text-right">Importe</th></tr></thead><tbody className="divide-y divide-slate-100">{visiblePending.map(({ order, item }) => <tr key={pendingKey(order.id, item.sku)} className="align-middle"><td className="px-3 py-4"><input type="checkbox" aria-label={`Seleccionar ${item.name}`} checked={!!selected[pendingKey(order.id, item.sku)]} onChange={event => setSelected(current => ({ ...current, [pendingKey(order.id, item.sku)]: event.target.checked }))} /></td><td className="whitespace-nowrap px-3 py-4 font-mono"><strong className="block">{item.sku}</strong>{item.subcode && <span className="block text-slate-500">{item.subcode}</span>}</td><td className="whitespace-normal break-words px-3 py-4 font-semibold leading-5">{item.name}</td><td className="px-3 py-4"><div className="flex gap-2">{(["noa", "nea", "bue", "cuy"] as const).map(region => <div key={region} className="text-center text-[9px] font-bold uppercase text-slate-500">{region}<StockIndicator level={item.stockRegional?.[region]} /></div>)}</div></td><td className="whitespace-nowrap px-3 py-4">{item.substitute ? <details className="text-[11px]"><summary className="cursor-pointer whitespace-nowrap font-bold text-intercap-blue-main">Ver sustituto</summary><p className="mt-1 text-slate-600">{item.substitute.name}<br />{item.substitute.stock}<br />{formatMoney(item.substitute.priceARS, currency)}</p></details> : <span className="whitespace-nowrap text-slate-400">No disponible</span>}</td><td className="whitespace-nowrap px-3 py-4 text-center"><input type="number" min={1} aria-label={`Cantidad no entregada de ${item.name}`} defaultValue={pendingQuantity(item)} onBlur={event => { const quantity = Number(event.currentTarget.value); if (Number.isInteger(quantity) && quantity >= 1) updatePendingQuantity(order.id, item.sku, quantity); else event.currentTarget.value = String(pendingQuantity(item)); }} onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} className="w-16 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-center font-bold text-rose-700 outline-none focus:border-rose-400" /></td><td className="whitespace-nowrap px-3 py-4 text-right font-bold">{formatMoney(pendingQuantity(item) * item.unitPriceARS, currency)}</td></tr>)}</tbody></table>{!visiblePending.length && <p className="p-8 text-center text-sm text-slate-500">No hay productos no entregados para mostrar.</p>}</div>
